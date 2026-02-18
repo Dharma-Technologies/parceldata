@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,32 @@ from app.services.search_service import SearchFilters, SearchService
 router = APIRouter(prefix="/v1/properties", tags=["Properties"])
 
 DetailLevel = Literal["micro", "standard", "extended", "full"]
+
+
+def _apply_field_selection(
+    response: PropertyResponse | PropertyMicroResponse,
+    fields: str | None,
+    include_provenance: bool,
+) -> dict[str, Any] | PropertyResponse | PropertyMicroResponse:
+    """Filter response fields based on select parameter."""
+    if fields is None and include_provenance:
+        return response
+
+    response_dict = response.model_dump()
+
+    if fields is not None:
+        field_list = [f.strip() for f in fields.split(",")]
+        filtered = {
+            k: v for k, v in response_dict.items() if k in field_list
+        }
+        # Always include data_quality
+        filtered["data_quality"] = response_dict["data_quality"]
+        return filtered
+
+    if not include_provenance:
+        response_dict.pop("provenance", None)
+
+    return response_dict
 
 
 @router.post("/search", response_model=SearchResponse)
@@ -56,7 +82,6 @@ async def search_properties(
         prop_service.to_response(p, detail)
         for p in properties
     ]
-    # Ensure only PropertyResponse in results (search always standard+)
     full_results: list[PropertyResponse] = []
     for r in results:
         if isinstance(r, PropertyResponse):
@@ -165,20 +190,25 @@ async def get_property_by_coordinates(
     return service.to_response(prop, detail)
 
 
-@router.get(
-    "/{property_id}",
-    response_model=PropertyResponse | PropertyMicroResponse,
-)
+@router.get("/{property_id}")
 async def get_property_by_id(
     property_id: str,
     detail: DetailLevel = "standard",
+    select: str | None = Query(
+        None, description="Comma-separated fields to include",
+    ),
+    include_provenance: bool = Query(
+        True, description="Include provenance metadata",
+    ),
     db: AsyncSession = Depends(get_db),
-) -> PropertyResponse | PropertyMicroResponse:
+) -> dict[str, Any] | PropertyResponse | PropertyMicroResponse:
     """Get property by Dharma Parcel ID.
 
     Args:
         property_id: Dharma Parcel ID (e.g., TX-TRAVIS-0234567).
         detail: Response detail level (micro, standard, extended, full).
+        select: Comma-separated field names to include.
+        include_provenance: Whether to include provenance metadata.
     """
     service = PropertyService(db)
     prop = await service.get_by_id(property_id)
@@ -187,4 +217,7 @@ async def get_property_by_id(
             status_code=404,
             detail=f"Property not found: {property_id}",
         )
-    return service.to_response(prop, detail)
+    response = service.to_response(prop, detail)
+    return _apply_field_selection(
+        response, select, include_provenance,
+    )
