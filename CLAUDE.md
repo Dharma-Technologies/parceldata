@@ -282,966 +282,1553 @@ docker-compose up -d
 8. Use environment variables for ALL configuration (no hardcoded values)
 9. MIT license — code is open source
 
-## Current Stage: P10-04-auth-billing
+## Current Stage: P10-05-data-pipeline
 
-# PRD: P10-04 — Auth & Billing
+# PRD: P10-05 — Data Pipeline
 
 ## Overview
-Implement API key management, authentication, usage metering, rate limiting by tier, and Stripe billing integration for self-serve signup and payment.
+Build the data ingestion framework with provider adapters for Regrid, ATTOM, Census, FEMA, and EPA. Implement address normalization, geocoding, entity resolution, data quality scoring, and freshness tracking.
 
 ---
 
 ## Stories
 
-### S1: API Key Model
-Create `api/app/models/api_key.py` for key storage.
+### S1: Provider Adapter Base Class
+Create `api/app/services/ingestion/base.py` with abstract adapter.
 
 ```python
-# api/app/models/api_key.py
+# api/app/services/ingestion/base.py
+from abc import ABC, abstractmethod
 from datetime import datetime
-from sqlalchemy import String, Integer, Boolean, DateTime, Enum, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import JSONB
-from app.models.base import Base, TimestampMixin
-import enum
-
-class TierEnum(str, enum.Enum):
-    FREE = "free"
-    PRO = "pro"
-    BUSINESS = "business"
-    ENTERPRISE = "enterprise"
-
-class APIKey(Base, TimestampMixin):
-    __tablename__ = "api_keys"
-    __table_args__ = {"schema": "parcel"}
-    
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    key_prefix: Mapped[str] = mapped_column(String(10))  # pk_live_, pk_test_
-    
-    # Account
-    account_id: Mapped[int] = mapped_column(ForeignKey("parcel.accounts.id"), index=True)
-    
-    # Key metadata
-    name: Mapped[str | None] = mapped_column(String(100))
-    tier: Mapped[TierEnum] = mapped_column(Enum(TierEnum), default=TierEnum.FREE)
-    scopes: Mapped[list] = mapped_column(JSONB, default=["read"])  # read, write, admin
-    
-    # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_used: Mapped[datetime | None] = mapped_column(DateTime)
-    
-    # Limits
-    rate_limit_override: Mapped[int | None] = mapped_column(Integer)  # Custom rate limit
-    daily_limit_override: Mapped[int | None] = mapped_column(Integer)
-    
-    # Expiration
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime)
-    
-    account = relationship("Account", back_populates="api_keys")
-
-class Account(Base, TimestampMixin):
-    __tablename__ = "accounts"
-    __table_args__ = {"schema": "parcel"}
-    
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    
-    # Identity
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    
-    # Profile
-    name: Mapped[str | None] = mapped_column(String(200))
-    company: Mapped[str | None] = mapped_column(String(200))
-    
-    # Billing
-    stripe_customer_id: Mapped[str | None] = mapped_column(String(50), index=True)
-    tier: Mapped[TierEnum] = mapped_column(Enum(TierEnum), default=TierEnum.FREE)
-    
-    # Status
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    
-    api_keys = relationship("APIKey", back_populates="account")
-    usage_records = relationship("UsageRecord", back_populates="account")
-```
-
-### S2: Usage Record Model
-Create `api/app/models/usage.py` for tracking API usage.
-
-```python
-# api/app/models/usage.py
-from datetime import datetime, date
-from sqlalchemy import String, Integer, Float, Date, DateTime, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.models.base import Base
-
-class UsageRecord(Base):
-    __tablename__ = "usage_records"
-    __table_args__ = {"schema": "parcel"}
-    
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    account_id: Mapped[int] = mapped_column(ForeignKey("parcel.accounts.id"), index=True)
-    api_key_id: Mapped[int] = mapped_column(ForeignKey("parcel.api_keys.id"), index=True)
-    
-    # Period
-    usage_date: Mapped[date] = mapped_column(Date, index=True)
-    
-    # Counts
-    queries_count: Mapped[int] = mapped_column(Integer, default=0)
-    queries_billable: Mapped[int] = mapped_column(Integer, default=0)
-    
-    # Breakdown by endpoint
-    property_lookups: Mapped[int] = mapped_column(Integer, default=0)
-    property_searches: Mapped[int] = mapped_column(Integer, default=0)
-    comparables_requests: Mapped[int] = mapped_column(Integer, default=0)
-    batch_requests: Mapped[int] = mapped_column(Integer, default=0)
-    
-    # Costs (for metered billing)
-    estimated_cost: Mapped[float] = mapped_column(Float, default=0.0)
-    
-    account = relationship("Account", back_populates="usage_records")
-
-class UsageEvent(Base):
-    __tablename__ = "usage_events"
-    __table_args__ = {"schema": "parcel"}
-    
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    api_key_id: Mapped[int] = mapped_column(ForeignKey("parcel.api_keys.id"), index=True)
-    
-    # Event details
-    endpoint: Mapped[str] = mapped_column(String(100), index=True)
-    method: Mapped[str] = mapped_column(String(10))
-    query_count: Mapped[int] = mapped_column(Integer, default=1)  # Batch = multiple
-    
-    # Response
-    status_code: Mapped[int] = mapped_column(Integer)
-    response_time_ms: Mapped[int] = mapped_column(Integer)
-    
-    # Timestamp
-    timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
-```
-
-### S3: API Key Service
-Create `api/app/services/auth_service.py` for key management.
-
-```python
-# api/app/services/auth_service.py
-import hashlib
-import secrets
-from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.models.api_key import APIKey, Account, TierEnum
-from app.database.redis import get_redis
-
-class AuthService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-    
-    async def create_account(self, email: str, name: str | None = None) -> Account:
-        """Create a new account."""
-        account = Account(email=email.lower(), name=name)
-        self.db.add(account)
-        await self.db.commit()
-        await self.db.refresh(account)
-        return account
-    
-    async def create_api_key(
-        self,
-        account_id: int,
-        name: str | None = None,
-        tier: TierEnum = TierEnum.FREE,
-        scopes: list[str] | None = None,
-    ) -> tuple[str, APIKey]:
-        """
-        Create a new API key for an account.
-        
-        Returns (raw_key, APIKey) - raw_key is only shown once.
-        """
-        # Generate key
-        key_id = secrets.token_urlsafe(24)
-        prefix = "pk_live_" if tier != TierEnum.FREE else "pk_test_"
-        raw_key = f"{prefix}{key_id}"
-        
-        # Hash for storage
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        
-        api_key = APIKey(
-            key_hash=key_hash,
-            key_prefix=prefix,
-            account_id=account_id,
-            name=name,
-            tier=tier,
-            scopes=scopes or ["read"],
-        )
-        
-        self.db.add(api_key)
-        await self.db.commit()
-        await self.db.refresh(api_key)
-        
-        # Cache key info in Redis for fast lookup
-        redis = await get_redis()
-        await redis.hset(f"apikey:{raw_key}", mapping={
-            "id": str(api_key.id),
-            "account_id": str(account_id),
-            "tier": tier.value,
-            "scopes": ",".join(api_key.scopes),
-        })
-        await redis.expire(f"apikey:{raw_key}", 86400)  # 24 hour cache
-        
-        return raw_key, api_key
-    
-    async def validate_key(self, raw_key: str) -> dict | None:
-        """
-        Validate an API key and return key info.
-        
-        Returns None if invalid.
-        """
-        # Check Redis cache first
-        redis = await get_redis()
-        cached = await redis.hgetall(f"apikey:{raw_key}")
-        
-        if cached:
-            return {
-                "id": int(cached["id"]),
-                "account_id": int(cached["account_id"]),
-                "tier": cached["tier"],
-                "scopes": cached["scopes"].split(","),
-            }
-        
-        # Check database
-        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-        stmt = select(APIKey).where(
-            APIKey.key_hash == key_hash,
-            APIKey.is_active == True,
-        )
-        result = await self.db.execute(stmt)
-        api_key = result.scalar_one_or_none()
-        
-        if not api_key:
-            return None
-        
-        # Check expiration
-        if api_key.expires_at and api_key.expires_at < datetime.utcnow():
-            return None
-        
-        # Update last used
-        api_key.last_used = datetime.utcnow()
-        await self.db.commit()
-        
-        # Cache in Redis
-        key_info = {
-            "id": str(api_key.id),
-            "account_id": str(api_key.account_id),
-            "tier": api_key.tier.value,
-            "scopes": ",".join(api_key.scopes),
-        }
-        await redis.hset(f"apikey:{raw_key}", mapping=key_info)
-        await redis.expire(f"apikey:{raw_key}", 86400)
-        
-        return {
-            "id": api_key.id,
-            "account_id": api_key.account_id,
-            "tier": api_key.tier.value,
-            "scopes": api_key.scopes,
-        }
-    
-    async def revoke_key(self, key_id: int) -> bool:
-        """Revoke an API key."""
-        stmt = select(APIKey).where(APIKey.id == key_id)
-        result = await self.db.execute(stmt)
-        api_key = result.scalar_one_or_none()
-        
-        if not api_key:
-            return False
-        
-        api_key.is_active = False
-        await self.db.commit()
-        
-        # Invalidate Redis cache
-        # (Note: we don't have the raw key here, so cache will expire naturally)
-        
-        return True
-```
-
-### S4: Usage Tracking Service
-Create `api/app/services/usage_service.py` for metering.
-
-```python
-# api/app/services/usage_service.py
-from datetime import datetime, date
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from app.models.usage import UsageRecord, UsageEvent
-from app.database.redis import get_redis
-
-# Query cost weights
-QUERY_COSTS = {
-    "property_lookup": 1,
-    "property_lookup_full": 2,
-    "property_search": 1,
-    "comparables": 3,
-    "market_trends": 5,
-    "batch": 1,  # Per property in batch
-}
-
-class UsageService:
-    def __init__(self, db: AsyncSession):
-        self.db = db
-    
-    async def record_usage(
-        self,
-        api_key_id: int,
-        endpoint: str,
-        method: str,
-        status_code: int,
-        response_time_ms: int,
-        query_count: int = 1,
-    ) -> None:
-        """Record an API usage event."""
-        
-        # Create event record
-        event = UsageEvent(
-            api_key_id=api_key_id,
-            endpoint=endpoint,
-            method=method,
-            query_count=query_count,
-            status_code=status_code,
-            response_time_ms=response_time_ms,
-        )
-        self.db.add(event)
-        
-        # Update daily aggregate (async, best effort)
-        await self._update_daily_aggregate(api_key_id, endpoint, query_count)
-        
-        await self.db.commit()
-    
-    async def _update_daily_aggregate(
-        self,
-        api_key_id: int,
-        endpoint: str,
-        query_count: int,
-    ) -> None:
-        """Update daily usage aggregate."""
-        today = date.today()
-        
-        # Get or create daily record
-        stmt = select(UsageRecord).where(
-            UsageRecord.api_key_id == api_key_id,
-            UsageRecord.usage_date == today,
-        )
-        result = await self.db.execute(stmt)
-        record = result.scalar_one_or_none()
-        
-        if not record:
-            # Get account_id from key
-            from app.models.api_key import APIKey
-            key_stmt = select(APIKey.account_id).where(APIKey.id == api_key_id)
-            key_result = await self.db.execute(key_stmt)
-            account_id = key_result.scalar_one()
-            
-            record = UsageRecord(
-                api_key_id=api_key_id,
-                account_id=account_id,
-                usage_date=today,
-            )
-            self.db.add(record)
-        
-        # Update counts
-        record.queries_count += query_count
-        record.queries_billable += query_count * QUERY_COSTS.get(endpoint, 1)
-        
-        # Update endpoint-specific counts
-        if "property" in endpoint and "search" not in endpoint:
-            record.property_lookups += query_count
-        elif "search" in endpoint:
-            record.property_searches += query_count
-        elif "comparable" in endpoint:
-            record.comparables_requests += query_count
-        elif "batch" in endpoint:
-            record.batch_requests += query_count
-    
-    async def get_usage_summary(
-        self,
-        account_id: int,
-        start_date: date | None = None,
-        end_date: date | None = None,
-    ) -> dict:
-        """Get usage summary for an account."""
-        
-        if not start_date:
-            start_date = date.today().replace(day=1)  # Start of month
-        if not end_date:
-            end_date = date.today()
-        
-        stmt = select(
-            func.sum(UsageRecord.queries_count).label("total_queries"),
-            func.sum(UsageRecord.queries_billable).label("billable_queries"),
-            func.sum(UsageRecord.property_lookups).label("property_lookups"),
-            func.sum(UsageRecord.property_searches).label("property_searches"),
-            func.sum(UsageRecord.comparables_requests).label("comparables"),
-        ).where(
-            UsageRecord.account_id == account_id,
-            UsageRecord.usage_date >= start_date,
-            UsageRecord.usage_date <= end_date,
-        )
-        
-        result = await self.db.execute(stmt)
-        row = result.one()
-        
-        return {
-            "period": {
-                "start": start_date.isoformat(),
-                "end": end_date.isoformat(),
-            },
-            "queries": {
-                "total": row.total_queries or 0,
-                "billable": row.billable_queries or 0,
-            },
-            "breakdown": {
-                "property_lookups": row.property_lookups or 0,
-                "property_searches": row.property_searches or 0,
-                "comparables": row.comparables or 0,
-            },
-        }
-    
-    async def check_quota(self, api_key_id: int, tier: str) -> tuple[bool, int, int]:
-        """
-        Check if key has remaining quota.
-        
-        Returns (has_quota, used, limit).
-        """
-        redis = await get_redis()
-        today = date.today().isoformat()
-        
-        # Get daily usage from Redis
-        usage_key = f"usage:{api_key_id}:{today}"
-        used = int(await redis.get(usage_key) or 0)
-        
-        # Get limit for tier
-        limits = {
-            "free": 100,
-            "pro": 10000,
-            "business": 500000,
-            "enterprise": 10000000,
-        }
-        limit = limits.get(tier, 100)
-        
-        return (used < limit, used, limit)
-```
-
-### S5: Authentication Routes
-Create `api/app/routes/auth.py` for key management endpoints.
-
-```python
-# api/app/routes/auth.py
-from fastapi import APIRouter, Depends, HTTPException, Body
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, EmailStr
-from app.database.connection import get_db
-from app.services.auth_service import AuthService
-from app.models.api_key import TierEnum
-
-router = APIRouter(prefix="/v1/auth", tags=["Authentication"])
-
-class SignupRequest(BaseModel):
-    email: EmailStr
-    name: str | None = None
-    company: str | None = None
-
-class SignupResponse(BaseModel):
-    account_id: int
-    api_key: str
-    tier: str
-    message: str
-
-@router.post("/signup", response_model=SignupResponse)
-async def signup(
-    request: SignupRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Create a new account and get an API key.
-    
-    The API key is only shown once — save it securely.
-    """
-    service = AuthService(db)
-    
-    # Check if email already exists
-    from sqlalchemy import select
-    from app.models.api_key import Account
-    stmt = select(Account).where(Account.email == request.email.lower())
-    result = await db.execute(stmt)
-    existing = result.scalar_one_or_none()
-    
-    if existing:
-        raise HTTPException(
-            status_code=400,
-            detail="An account with this email already exists",
-        )
-    
-    # Create account
-    account = await service.create_account(
-        email=request.email,
-        name=request.name,
-    )
-    
-    # Create API key
-    raw_key, api_key = await service.create_api_key(
-        account_id=account.id,
-        name="Default Key",
-        tier=TierEnum.FREE,
-    )
-    
-    return SignupResponse(
-        account_id=account.id,
-        api_key=raw_key,
-        tier="free",
-        message="Save your API key — it will not be shown again.",
-    )
-
-class CreateKeyRequest(BaseModel):
-    name: str | None = None
-    scopes: list[str] = ["read"]
-
-class CreateKeyResponse(BaseModel):
-    api_key: str
-    key_id: int
-    tier: str
-    scopes: list[str]
-
-@router.post("/keys", response_model=CreateKeyResponse)
-async def create_key(
-    request: CreateKeyRequest,
-    db: AsyncSession = Depends(get_db),
-    # Note: This should be authenticated with existing key
-):
-    """
-    Create an additional API key for your account.
-    
-    Requires authentication with an existing key that has 'admin' scope.
-    """
-    # TODO: Get account_id from authenticated key
-    # For now, this is a placeholder
-    raise HTTPException(status_code=501, detail="Not implemented")
-
-@router.get("/keys")
-async def list_keys(
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    List all API keys for your account.
-    
-    Does not show the actual key values.
-    """
-    # TODO: Get account_id from authenticated key
-    raise HTTPException(status_code=501, detail="Not implemented")
-
-@router.delete("/keys/{key_id}")
-async def revoke_key(
-    key_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Revoke an API key.
-    
-    The key will immediately stop working.
-    """
-    service = AuthService(db)
-    success = await service.revoke_key(key_id)
-    
-    if not success:
-        raise HTTPException(status_code=404, detail="Key not found")
-    
-    return {"message": "Key revoked successfully"}
-```
-
-### S6: Account Routes
-Create `api/app/routes/account.py` for account and usage info.
-
-```python
-# api/app/routes/account.py
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date
+from typing import AsyncIterator
 from pydantic import BaseModel
-from app.database.connection import get_db
-from app.services.usage_service import UsageService
 
-router = APIRouter(prefix="/v1/account", tags=["Account"])
-
-class UsageResponse(BaseModel):
-    period: dict
-    queries: dict
-    breakdown: dict
-    limits: dict
-    remaining: int
-
-@router.get("/usage", response_model=UsageResponse)
-async def get_usage(
-    request: Request,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get your API usage for the current billing period.
-    """
-    key_info = request.state.key_info
-    account_id = key_info.get("account_id")
-    tier = key_info.get("tier", "free")
+class RawPropertyRecord(BaseModel):
+    """Raw property record from a data provider."""
+    source_system: str
+    source_type: str
+    source_record_id: str
+    extraction_timestamp: datetime
+    raw_data: dict
     
-    service = UsageService(db)
-    usage = await service.get_usage_summary(account_id, start_date, end_date)
-    
-    # Get tier limits
-    limits = {
-        "free": 3000,
-        "pro": 50000,
-        "business": 500000,
-        "enterprise": 10000000,
-    }
-    monthly_limit = limits.get(tier, 3000)
-    
-    return UsageResponse(
-        period=usage["period"],
-        queries=usage["queries"],
-        breakdown=usage["breakdown"],
-        limits={
-            "monthly": monthly_limit,
-            "tier": tier,
-        },
-        remaining=max(0, monthly_limit - usage["queries"]["total"]),
-    )
+    # Parsed fields (provider fills what it can)
+    parcel_id: str | None = None
+    address_raw: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
-class BillingResponse(BaseModel):
-    tier: str
-    status: str
-    current_period: dict
-    payment_method: dict | None
-    invoices: list[dict]
-
-@router.get("/billing", response_model=BillingResponse)
-async def get_billing(
-    request: Request,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get your billing information and invoices.
-    """
-    key_info = request.state.key_info
-    tier = key_info.get("tier", "free")
+class ProviderAdapter(ABC):
+    """Base class for data provider adapters."""
     
-    # TODO: Integrate with Stripe to get real billing data
-    return BillingResponse(
-        tier=tier,
-        status="active",
-        current_period={
-            "start": date.today().replace(day=1).isoformat(),
-            "end": date.today().isoformat(),
-        },
-        payment_method=None,
-        invoices=[],
-    )
-
-@router.post("/upgrade")
-async def upgrade_tier(
-    request: Request,
-    target_tier: str,
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Upgrade your account to a higher tier.
+    name: str
+    source_type: str
     
-    Redirects to Stripe checkout for payment.
-    """
-    # TODO: Create Stripe checkout session
-    raise HTTPException(status_code=501, detail="Not implemented - use Stripe checkout")
+    def __init__(self, api_key: str | None = None):
+        self.api_key = api_key
+    
+    @abstractmethod
+    async def fetch_property(self, property_id: str) -> RawPropertyRecord | None:
+        """Fetch a single property by ID."""
+        pass
+    
+    @abstractmethod
+    async def fetch_by_address(
+        self,
+        street: str,
+        city: str,
+        state: str,
+        zip_code: str | None = None,
+    ) -> RawPropertyRecord | None:
+        """Fetch property by address."""
+        pass
+    
+    @abstractmethod
+    async def fetch_batch(
+        self,
+        property_ids: list[str],
+    ) -> list[RawPropertyRecord]:
+        """Fetch multiple properties by ID."""
+        pass
+    
+    @abstractmethod
+    async def stream_region(
+        self,
+        state: str,
+        county: str | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[RawPropertyRecord]:
+        """Stream all properties in a region."""
+        pass
+    
+    @abstractmethod
+    def get_coverage_info(self) -> dict:
+        """Return coverage information for this provider."""
+        pass
 ```
 
-### S7: Stripe Integration
-Create `api/app/services/stripe_service.py` for billing.
+### S2: Regrid Adapter
+Create `api/app/services/ingestion/providers/regrid.py`.
 
 ```python
-# api/app/services/stripe_service.py
-import stripe
+# api/app/services/ingestion/providers/regrid.py
+import httpx
+from datetime import datetime
+from typing import AsyncIterator
+from app.services.ingestion.base import ProviderAdapter, RawPropertyRecord
 from app.config import settings
 
-stripe.api_key = settings.stripe_secret_key
-
-PRICE_IDS = {
-    "pro": "price_pro_monthly",  # Replace with actual Stripe price IDs
-    "business": "price_business_monthly",
-}
-
-class StripeService:
-    @staticmethod
-    async def create_customer(email: str, name: str | None = None) -> str:
-        """Create a Stripe customer."""
-        customer = stripe.Customer.create(
-            email=email,
-            name=name,
-        )
-        return customer.id
+class RegridAdapter(ProviderAdapter):
+    """Adapter for Regrid parcel data API."""
     
-    @staticmethod
-    async def create_checkout_session(
-        customer_id: str,
-        price_id: str,
-        success_url: str,
-        cancel_url: str,
-    ) -> str:
-        """Create a Stripe checkout session for subscription."""
-        session = stripe.checkout.Session.create(
-            customer=customer_id,
-            payment_method_types=["card"],
-            line_items=[{"price": price_id, "quantity": 1}],
-            mode="subscription",
-            success_url=success_url,
-            cancel_url=cancel_url,
-        )
-        return session.url
+    name = "regrid"
+    source_type = "parcel_data"
+    base_url = "https://app.regrid.com/api/v1"
     
-    @staticmethod
-    async def create_portal_session(customer_id: str, return_url: str) -> str:
-        """Create a Stripe customer portal session."""
-        session = stripe.billing_portal.Session.create(
-            customer=customer_id,
-            return_url=return_url,
+    def __init__(self, api_key: str | None = None):
+        super().__init__(api_key or settings.regrid_api_key)
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            timeout=30.0,
         )
-        return session.url
     
-    @staticmethod
-    async def get_subscription(customer_id: str) -> dict | None:
-        """Get active subscription for a customer."""
-        subscriptions = stripe.Subscription.list(
-            customer=customer_id,
-            status="active",
-            limit=1,
+    async def fetch_property(self, property_id: str) -> RawPropertyRecord | None:
+        """Fetch property by Regrid parcel ID."""
+        try:
+            response = await self.client.get(f"/parcels/{property_id}")
+            response.raise_for_status()
+            data = response.json()
+            
+            return self._to_raw_record(data)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+    
+    async def fetch_by_address(
+        self,
+        street: str,
+        city: str,
+        state: str,
+        zip_code: str | None = None,
+    ) -> RawPropertyRecord | None:
+        """Fetch property by address using Regrid geocoding."""
+        address = f"{street}, {city}, {state}"
+        if zip_code:
+            address += f" {zip_code}"
+        
+        response = await self.client.get(
+            "/parcels/search",
+            params={"address": address, "limit": 1},
         )
-        if subscriptions.data:
-            return subscriptions.data[0]
+        response.raise_for_status()
+        results = response.json().get("results", [])
+        
+        if results:
+            return self._to_raw_record(results[0])
         return None
     
-    @staticmethod
-    async def record_usage(subscription_item_id: str, quantity: int) -> None:
-        """Record metered usage for overage billing."""
-        stripe.SubscriptionItem.create_usage_record(
-            subscription_item_id,
-            quantity=quantity,
-            action="increment",
+    async def fetch_batch(self, property_ids: list[str]) -> list[RawPropertyRecord]:
+        """Fetch multiple properties."""
+        results = []
+        for prop_id in property_ids:
+            record = await self.fetch_property(prop_id)
+            if record:
+                results.append(record)
+        return results
+    
+    async def stream_region(
+        self,
+        state: str,
+        county: str | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[RawPropertyRecord]:
+        """Stream parcels in a region."""
+        params = {"state": state}
+        if county:
+            params["county"] = county
+        if limit:
+            params["limit"] = limit
+        
+        offset = 0
+        page_size = 100
+        
+        while True:
+            params["offset"] = offset
+            params["limit"] = min(page_size, limit - offset if limit else page_size)
+            
+            response = await self.client.get("/parcels", params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            parcels = data.get("results", [])
+            if not parcels:
+                break
+            
+            for parcel in parcels:
+                yield self._to_raw_record(parcel)
+            
+            offset += len(parcels)
+            if limit and offset >= limit:
+                break
+    
+    def _to_raw_record(self, data: dict) -> RawPropertyRecord:
+        """Convert Regrid response to RawPropertyRecord."""
+        properties = data.get("properties", {})
+        geometry = data.get("geometry", {})
+        
+        # Extract coordinates from geometry
+        lat, lng = None, None
+        if geometry.get("type") == "Point":
+            coords = geometry.get("coordinates", [])
+            if len(coords) >= 2:
+                lng, lat = coords[0], coords[1]
+        
+        return RawPropertyRecord(
+            source_system="regrid",
+            source_type="parcel_data",
+            source_record_id=data.get("id", ""),
+            extraction_timestamp=datetime.utcnow(),
+            raw_data=data,
+            parcel_id=properties.get("parcelnumb"),
+            address_raw=properties.get("address"),
+            latitude=lat,
+            longitude=lng,
         )
+    
+    def get_coverage_info(self) -> dict:
+        return {
+            "provider": "Regrid",
+            "coverage": "Nationwide (US)",
+            "data_types": ["parcel_boundaries", "ownership", "zoning", "tax"],
+            "update_frequency": "monthly",
+        }
 ```
 
-### S8: Stripe Webhook Handler
-Create `api/app/routes/webhooks.py` for Stripe events.
+### S3: ATTOM Adapter
+Create `api/app/services/ingestion/providers/attom.py`.
 
 ```python
-# api/app/routes/webhooks.py
-from fastapi import APIRouter, Request, HTTPException, Header
-import stripe
+# api/app/services/ingestion/providers/attom.py
+import httpx
+from datetime import datetime
+from typing import AsyncIterator
+from app.services.ingestion.base import ProviderAdapter, RawPropertyRecord
 from app.config import settings
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.database.connection import get_db
 
-router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
-
-@router.post("/stripe")
-async def stripe_webhook(
-    request: Request,
-    stripe_signature: str = Header(None),
-):
-    """
-    Handle Stripe webhook events.
+class ATTOMAdapter(ProviderAdapter):
+    """Adapter for ATTOM property data API."""
     
-    Processes subscription changes, payment events, etc.
+    name = "attom"
+    source_type = "property_records"
+    base_url = "https://api.gateway.attomdata.com"
+    
+    def __init__(self, api_key: str | None = None):
+        super().__init__(api_key or settings.attom_api_key)
+        self.client = httpx.AsyncClient(
+            base_url=self.base_url,
+            headers={
+                "apikey": self.api_key,
+                "Accept": "application/json",
+            },
+            timeout=30.0,
+        )
+    
+    async def fetch_property(self, property_id: str) -> RawPropertyRecord | None:
+        """Fetch property by ATTOM ID."""
+        try:
+            response = await self.client.get(
+                "/propertyapi/v1.0.0/property/detail",
+                params={"attomid": property_id},
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            properties = data.get("property", [])
+            if properties:
+                return self._to_raw_record(properties[0])
+            return None
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                return None
+            raise
+    
+    async def fetch_by_address(
+        self,
+        street: str,
+        city: str,
+        state: str,
+        zip_code: str | None = None,
+    ) -> RawPropertyRecord | None:
+        """Fetch property by address."""
+        params = {
+            "address1": street,
+            "address2": f"{city}, {state}",
+        }
+        if zip_code:
+            params["address2"] += f" {zip_code}"
+        
+        response = await self.client.get(
+            "/propertyapi/v1.0.0/property/address",
+            params=params,
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        properties = data.get("property", [])
+        if properties:
+            return self._to_raw_record(properties[0])
+        return None
+    
+    async def fetch_batch(self, property_ids: list[str]) -> list[RawPropertyRecord]:
+        """Fetch multiple properties."""
+        results = []
+        for prop_id in property_ids:
+            record = await self.fetch_property(prop_id)
+            if record:
+                results.append(record)
+        return results
+    
+    async def stream_region(
+        self,
+        state: str,
+        county: str | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[RawPropertyRecord]:
+        """Stream properties in a region (via snapshot/bulk)."""
+        # ATTOM uses different endpoints for bulk access
+        # This is a placeholder - actual implementation depends on ATTOM contract
+        params = {"geoid": f"{state}"}  # Simplified
+        
+        response = await self.client.get(
+            "/propertyapi/v1.0.0/property/snapshot",
+            params=params,
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        for prop in data.get("property", [])[:limit]:
+            yield self._to_raw_record(prop)
+    
+    def _to_raw_record(self, data: dict) -> RawPropertyRecord:
+        """Convert ATTOM response to RawPropertyRecord."""
+        address = data.get("address", {})
+        location = data.get("location", {})
+        
+        return RawPropertyRecord(
+            source_system="attom",
+            source_type="property_records",
+            source_record_id=str(data.get("identifier", {}).get("attomId", "")),
+            extraction_timestamp=datetime.utcnow(),
+            raw_data=data,
+            parcel_id=data.get("identifier", {}).get("apn"),
+            address_raw=f"{address.get('line1', '')} {address.get('line2', '')}".strip(),
+            latitude=location.get("latitude"),
+            longitude=location.get("longitude"),
+        )
+    
+    def get_coverage_info(self) -> dict:
+        return {
+            "provider": "ATTOM",
+            "coverage": "155M+ US properties",
+            "data_types": ["ownership", "valuation", "tax", "title", "building"],
+            "update_frequency": "monthly",
+        }
+```
+
+### S4: Census Adapter (Free)
+Create `api/app/services/ingestion/providers/census.py`.
+
+```python
+# api/app/services/ingestion/providers/census.py
+import httpx
+from datetime import datetime
+from app.services.ingestion.base import ProviderAdapter, RawPropertyRecord
+
+class CensusAdapter(ProviderAdapter):
+    """Adapter for US Census Bureau ACS data (free)."""
+    
+    name = "census"
+    source_type = "demographics"
+    base_url = "https://api.census.gov/data"
+    
+    def __init__(self, api_key: str | None = None):
+        super().__init__(api_key)  # Census API key is optional but recommended
+        self.client = httpx.AsyncClient(timeout=30.0)
+    
+    async def fetch_demographics(
+        self,
+        state_fips: str,
+        county_fips: str | None = None,
+        tract: str | None = None,
+    ) -> dict:
+        """Fetch ACS demographics for a geography."""
+        
+        # ACS 5-year estimates
+        year = 2023
+        dataset = f"{year}/acs/acs5"
+        
+        # Variables to fetch
+        variables = [
+            "B01003_001E",  # Total population
+            "B19013_001E",  # Median household income
+            "B25077_001E",  # Median home value
+            "B25064_001E",  # Median gross rent
+            "B01002_001E",  # Median age
+        ]
+        
+        # Build geography
+        geo = f"state:{state_fips}"
+        if county_fips:
+            geo = f"county:{county_fips}&in=state:{state_fips}"
+        if tract:
+            geo = f"tract:{tract}&in=state:{state_fips}&in=county:{county_fips}"
+        
+        url = f"{self.base_url}/{dataset}"
+        params = {
+            "get": ",".join(variables),
+            "for": geo,
+        }
+        if self.api_key:
+            params["key"] = self.api_key
+        
+        response = await self.client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Parse response (first row is headers)
+        if len(data) > 1:
+            headers = data[0]
+            values = data[1]
+            return dict(zip(headers, values))
+        
+        return {}
+    
+    async def fetch_property(self, property_id: str) -> RawPropertyRecord | None:
+        """Not applicable for Census - use fetch_demographics instead."""
+        return None
+    
+    async def fetch_by_address(self, *args, **kwargs) -> RawPropertyRecord | None:
+        return None
+    
+    async def fetch_batch(self, property_ids: list[str]) -> list[RawPropertyRecord]:
+        return []
+    
+    async def stream_region(self, *args, **kwargs):
+        yield None  # Not applicable
+    
+    def get_coverage_info(self) -> dict:
+        return {
+            "provider": "US Census Bureau",
+            "coverage": "Nationwide (US)",
+            "data_types": ["demographics", "income", "housing"],
+            "update_frequency": "annual (ACS 5-year)",
+            "cost": "free",
+        }
+```
+
+### S5: FEMA Adapter (Free)
+Create `api/app/services/ingestion/providers/fema.py`.
+
+```python
+# api/app/services/ingestion/providers/fema.py
+import httpx
+from datetime import datetime
+from app.services.ingestion.base import ProviderAdapter, RawPropertyRecord
+
+class FEMAAdapter(ProviderAdapter):
+    """Adapter for FEMA flood zone data (free)."""
+    
+    name = "fema"
+    source_type = "flood_zones"
+    base_url = "https://hazards.fema.gov/gis/nfhl/rest/services"
+    
+    def __init__(self, api_key: str | None = None):
+        super().__init__(api_key)  # No API key required
+        self.client = httpx.AsyncClient(timeout=30.0)
+    
+    async def get_flood_zone(self, lat: float, lng: float) -> dict:
+        """Get flood zone for a coordinate."""
+        
+        # Query FEMA National Flood Hazard Layer (NFHL)
+        url = f"{self.base_url}/public/NFHL/MapServer/28/query"
+        
+        params = {
+            "geometry": f"{lng},{lat}",
+            "geometryType": "esriGeometryPoint",
+            "spatialRel": "esriSpatialRelIntersects",
+            "outFields": "FLD_ZONE,ZONE_SUBTY,SFHA_TF,STATIC_BFE",
+            "returnGeometry": "false",
+            "f": "json",
+        }
+        
+        response = await self.client.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        features = data.get("features", [])
+        if features:
+            attrs = features[0].get("attributes", {})
+            return {
+                "flood_zone": attrs.get("FLD_ZONE"),
+                "zone_subtype": attrs.get("ZONE_SUBTY"),
+                "in_sfha": attrs.get("SFHA_TF") == "T",  # Special Flood Hazard Area
+                "base_flood_elevation": attrs.get("STATIC_BFE"),
+            }
+        
+        return {
+            "flood_zone": "X",  # Default to minimal risk
+            "zone_subtype": None,
+            "in_sfha": False,
+            "base_flood_elevation": None,
+        }
+    
+    async def fetch_property(self, property_id: str) -> RawPropertyRecord | None:
+        return None
+    
+    async def fetch_by_address(self, *args, **kwargs) -> RawPropertyRecord | None:
+        return None
+    
+    async def fetch_batch(self, property_ids: list[str]) -> list[RawPropertyRecord]:
+        return []
+    
+    async def stream_region(self, *args, **kwargs):
+        yield None
+    
+    def get_coverage_info(self) -> dict:
+        return {
+            "provider": "FEMA",
+            "coverage": "Nationwide (US)",
+            "data_types": ["flood_zones", "flood_risk"],
+            "update_frequency": "varies by region",
+            "cost": "free",
+        }
+```
+
+### S6: Address Normalization Service
+Create `api/app/services/address.py` for USPS standardization.
+
+```python
+# api/app/services/address.py
+import re
+from dataclasses import dataclass
+from typing import Optional
+import usaddress
+
+# Street suffix standardization
+STREET_SUFFIXES = {
+    "avenue": "Ave", "ave": "Ave",
+    "boulevard": "Blvd", "blvd": "Blvd",
+    "circle": "Cir", "cir": "Cir",
+    "court": "Ct", "ct": "Ct",
+    "drive": "Dr", "dr": "Dr",
+    "highway": "Hwy", "hwy": "Hwy",
+    "lane": "Ln", "ln": "Ln",
+    "parkway": "Pkwy", "pkwy": "Pkwy",
+    "place": "Pl", "pl": "Pl",
+    "road": "Rd", "rd": "Rd",
+    "street": "St", "st": "St",
+    "terrace": "Ter", "ter": "Ter",
+    "trail": "Trl", "trl": "Trl",
+    "way": "Way",
+}
+
+DIRECTIONALS = {
+    "north": "N", "n": "N",
+    "south": "S", "s": "S",
+    "east": "E", "e": "E",
+    "west": "W", "w": "W",
+    "northeast": "NE", "ne": "NE",
+    "northwest": "NW", "nw": "NW",
+    "southeast": "SE", "se": "SE",
+    "southwest": "SW", "sw": "SW",
+}
+
+UNIT_TYPES = {
+    "apartment": "Apt", "apt": "Apt",
+    "suite": "Ste", "ste": "Ste",
+    "unit": "Unit",
+    "floor": "Fl", "fl": "Fl",
+    "#": "Apt",
+}
+
+@dataclass
+class NormalizedAddress:
+    street_number: str | None
+    street_name: str | None
+    street_suffix: str | None
+    street_direction: str | None
+    unit_type: str | None
+    unit_number: str | None
+    city: str | None
+    state: str | None
+    zip_code: str | None
+    zip4: str | None
+    street_address: str | None
+    formatted_address: str | None
+    confidence: float
+
+def normalize(raw_address: str) -> NormalizedAddress:
     """
-    payload = await request.body()
+    Normalize a raw address string to USPS standard format.
+    
+    Uses usaddress library for parsing, then applies USPS standardization.
+    """
+    if not raw_address:
+        return NormalizedAddress(
+            street_number=None, street_name=None, street_suffix=None,
+            street_direction=None, unit_type=None, unit_number=None,
+            city=None, state=None, zip_code=None, zip4=None,
+            street_address=None, formatted_address=None, confidence=0.0,
+        )
     
     try:
-        event = stripe.Webhook.construct_event(
-            payload,
-            stripe_signature,
-            settings.stripe_webhook_secret,
-        )
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid payload")
-    except stripe.error.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Invalid signature")
+        # Parse with usaddress
+        parsed, address_type = usaddress.tag(raw_address)
+    except usaddress.RepeatedLabelError:
+        # Fallback parsing
+        parsed = {}
+        address_type = "Unknown"
     
-    # Handle event types
-    if event.type == "checkout.session.completed":
-        session = event.data.object
-        await _handle_checkout_complete(session)
+    # Extract and standardize components
+    street_number = parsed.get("AddressNumber", "").strip()
     
-    elif event.type == "customer.subscription.updated":
-        subscription = event.data.object
-        await _handle_subscription_update(subscription)
+    # Street name (combine parts)
+    street_name_parts = []
+    for key in ["StreetNamePreDirectional", "StreetNamePreModifier", 
+                "StreetNamePreType", "StreetName"]:
+        if key in parsed:
+            street_name_parts.append(parsed[key])
+    street_name = " ".join(street_name_parts).strip()
     
-    elif event.type == "customer.subscription.deleted":
-        subscription = event.data.object
-        await _handle_subscription_cancel(subscription)
+    # Street suffix
+    street_suffix = parsed.get("StreetNamePostType", "").lower()
+    street_suffix = STREET_SUFFIXES.get(street_suffix, street_suffix.title())
     
-    elif event.type == "invoice.payment_failed":
-        invoice = event.data.object
-        await _handle_payment_failed(invoice)
+    # Direction
+    direction = parsed.get("StreetNamePostDirectional", "").lower()
+    direction = DIRECTIONALS.get(direction, direction.upper() if direction else None)
     
-    return {"received": True}
-
-async def _handle_checkout_complete(session: dict) -> None:
-    """Handle successful checkout - upgrade account tier."""
-    customer_id = session.get("customer")
-    # TODO: Find account by stripe_customer_id and update tier
-    pass
-
-async def _handle_subscription_update(subscription: dict) -> None:
-    """Handle subscription changes."""
-    # TODO: Update account tier based on subscription
-    pass
-
-async def _handle_subscription_cancel(subscription: dict) -> None:
-    """Handle subscription cancellation - downgrade to free."""
-    # TODO: Downgrade account to free tier
-    pass
-
-async def _handle_payment_failed(invoice: dict) -> None:
-    """Handle failed payment - may need to restrict access."""
-    # TODO: Mark account as payment_failed, send notification
-    pass
+    # Unit
+    unit_type = parsed.get("OccupancyType", "").lower()
+    unit_type = UNIT_TYPES.get(unit_type, unit_type.title() if unit_type else None)
+    unit_number = parsed.get("OccupancyIdentifier", "").strip()
+    
+    # Location
+    city = parsed.get("PlaceName", "").title()
+    state = parsed.get("StateName", "").upper()
+    zip_code = parsed.get("ZipCode", "")[:5] if parsed.get("ZipCode") else None
+    zip4 = parsed.get("ZipCode", "")[6:10] if len(parsed.get("ZipCode", "")) > 5 else None
+    
+    # Build formatted addresses
+    street_parts = [street_number, street_name, street_suffix]
+    if direction:
+        street_parts.append(direction)
+    street_address = " ".join(p for p in street_parts if p)
+    
+    if unit_type and unit_number:
+        street_address += f" {unit_type} {unit_number}"
+    
+    formatted_parts = [street_address]
+    if city:
+        formatted_parts.append(city)
+    if state:
+        formatted_parts[-1] += ","
+        formatted_parts.append(state)
+    if zip_code:
+        formatted_parts.append(zip_code)
+    
+    formatted_address = " ".join(formatted_parts)
+    
+    # Calculate confidence
+    confidence = 0.0
+    if street_number:
+        confidence += 0.2
+    if street_name:
+        confidence += 0.3
+    if city:
+        confidence += 0.2
+    if state:
+        confidence += 0.2
+    if zip_code:
+        confidence += 0.1
+    
+    return NormalizedAddress(
+        street_number=street_number or None,
+        street_name=street_name or None,
+        street_suffix=street_suffix or None,
+        street_direction=direction,
+        unit_type=unit_type,
+        unit_number=unit_number or None,
+        city=city or None,
+        state=state if len(state) == 2 else None,
+        zip_code=zip_code,
+        zip4=zip4,
+        street_address=street_address or None,
+        formatted_address=formatted_address or None,
+        confidence=confidence,
+    )
 ```
 
-### S9: Usage Tracking Middleware
-Create `api/app/middleware/usage_tracking.py` for automatic metering.
+### S7: Geocoding Service
+Create `api/app/services/geocoding.py` with multiple provider fallback.
 
 ```python
-# api/app/middleware/usage_tracking.py
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-import time
-from app.database.connection import async_session_maker
-from app.services.usage_service import UsageService
+# api/app/services/geocoding.py
+import httpx
+from dataclasses import dataclass
+from typing import Optional
+from app.config import settings
 
-class UsageTrackingMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Skip non-API routes
-        if not request.url.path.startswith("/v1/"):
-            return await call_next(request)
+@dataclass
+class GeocodingResult:
+    latitude: float
+    longitude: float
+    accuracy: str  # rooftop, parcel, street, city
+    source: str
+    confidence: float
+
+class GeocodingService:
+    """Geocoding with multiple provider fallback."""
+    
+    def __init__(self):
+        self.client = httpx.AsyncClient(timeout=10.0)
+    
+    async def geocode(
+        self,
+        address: str,
+        city: str | None = None,
+        state: str | None = None,
+        zip_code: str | None = None,
+    ) -> GeocodingResult | None:
+        """
+        Geocode an address using multiple providers with fallback.
         
-        # Skip if not authenticated
-        if not hasattr(request.state, "key_info"):
-            return await call_next(request)
+        Tries providers in order: Census, Nominatim, Google (if configured).
+        """
+        full_address = address
+        if city:
+            full_address += f", {city}"
+        if state:
+            full_address += f", {state}"
+        if zip_code:
+            full_address += f" {zip_code}"
         
-        start_time = time.time()
-        response = await call_next(request)
-        response_time_ms = int((time.time() - start_time) * 1000)
+        # Try Census Geocoder first (free, high quality for US)
+        result = await self._census_geocode(full_address)
+        if result:
+            return result
         
-        # Track usage (async, best effort)
+        # Fallback to Nominatim (free, global)
+        result = await self._nominatim_geocode(full_address)
+        if result:
+            return result
+        
+        # Could add Google Maps, HERE, etc. as paid fallbacks
+        
+        return None
+    
+    async def _census_geocode(self, address: str) -> GeocodingResult | None:
+        """Use Census Bureau geocoder (free, US only)."""
         try:
-            key_info = request.state.key_info
-            key_id = key_info.get("id")
+            url = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
+            params = {
+                "address": address,
+                "benchmark": "Public_AR_Current",
+                "format": "json",
+            }
             
-            if key_id:
-                # Determine query count for batch endpoints
-                query_count = 1
-                if "/batch" in request.url.path:
-                    # Get count from response or request body
-                    query_count = getattr(request.state, "batch_count", 1)
+            response = await self.client.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            matches = data.get("result", {}).get("addressMatches", [])
+            if matches:
+                match = matches[0]
+                coords = match.get("coordinates", {})
                 
-                # Record async
-                async with async_session_maker() as db:
-                    service = UsageService(db)
-                    await service.record_usage(
-                        api_key_id=key_id,
-                        endpoint=request.url.path,
-                        method=request.method,
-                        status_code=response.status_code,
-                        response_time_ms=response_time_ms,
-                        query_count=query_count,
-                    )
+                return GeocodingResult(
+                    latitude=coords.get("y"),
+                    longitude=coords.get("x"),
+                    accuracy="rooftop",
+                    source="census",
+                    confidence=0.95,
+                )
         except Exception:
-            # Don't fail the request if usage tracking fails
             pass
         
-        return response
-```
-
-### S10: Enhanced Rate Limiting
-Update `api/app/middleware/rate_limit.py` with quota checks.
-
-```python
-# Update api/app/middleware/rate_limit.py
-
-from app.services.usage_service import UsageService
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        if not hasattr(request.state, "api_key"):
-            return await call_next(request)
-        
-        key_info = request.state.key_info
-        key_id = key_info.get("id")
-        tier = key_info.get("tier", "free")
-        
-        # Check per-second rate limit (existing code)
-        # ...
-        
-        # Check monthly quota
-        async with async_session_maker() as db:
-            service = UsageService(db)
-            has_quota, used, limit = await service.check_quota(key_id, tier)
-            
-            if not has_quota:
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Monthly quota exceeded ({limit} queries for {tier} tier). Upgrade at parceldata.ai/pricing",
-                )
-        
-        response = await call_next(request)
-        
-        # Add usage headers
-        response.headers["X-Usage-Remaining"] = str(limit - used)
-        response.headers["X-Usage-Limit"] = str(limit)
-        
-        return response
-```
-
-### S11: Add Stripe Config
-Update `api/app/config.py` with Stripe settings.
-
-```python
-# Add to api/app/config.py
-
-class Settings(BaseSettings):
-    # ... existing settings ...
+        return None
     
-    # Stripe
-    stripe_secret_key: str = ""
-    stripe_publishable_key: str = ""
-    stripe_webhook_secret: str = ""
-    stripe_pro_price_id: str = ""
-    stripe_business_price_id: str = ""
+    async def _nominatim_geocode(self, address: str) -> GeocodingResult | None:
+        """Use OpenStreetMap Nominatim (free, global)."""
+        try:
+            url = "https://nominatim.openstreetmap.org/search"
+            params = {
+                "q": address,
+                "format": "json",
+                "limit": 1,
+            }
+            headers = {"User-Agent": "ParcelData/0.1"}
+            
+            response = await self.client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            results = response.json()
+            
+            if results:
+                result = results[0]
+                return GeocodingResult(
+                    latitude=float(result["lat"]),
+                    longitude=float(result["lon"]),
+                    accuracy="street",
+                    source="nominatim",
+                    confidence=0.8,
+                )
+        except Exception:
+            pass
+        
+        return None
+    
+    async def reverse_geocode(
+        self,
+        lat: float,
+        lng: float,
+    ) -> dict | None:
+        """Reverse geocode coordinates to address."""
+        try:
+            url = "https://nominatim.openstreetmap.org/reverse"
+            params = {
+                "lat": lat,
+                "lon": lng,
+                "format": "json",
+            }
+            headers = {"User-Agent": "ParcelData/0.1"}
+            
+            response = await self.client.get(url, params=params, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            return {
+                "address": data.get("display_name"),
+                "house_number": data.get("address", {}).get("house_number"),
+                "road": data.get("address", {}).get("road"),
+                "city": data.get("address", {}).get("city"),
+                "state": data.get("address", {}).get("state"),
+                "postcode": data.get("address", {}).get("postcode"),
+            }
+        except Exception:
+            return None
 ```
 
-### S12: Alembic Migration for Auth Tables
-Create migration for API key and usage tables.
+### S8: Entity Resolution Pipeline
+Create `api/app/services/entity_resolution.py`.
 
-```bash
-cd /home/numen/dharma/parceldata/api
-alembic revision --autogenerate -m "Add auth and usage tables"
-alembic upgrade head
+```python
+# api/app/services/entity_resolution.py
+import hashlib
+from dataclasses import dataclass
+from typing import Optional
+from jellyfish import jaro_winkler_similarity
+from app.services.address import normalize, NormalizedAddress
+from app.services.geocoding import GeocodingService
+import math
+
+@dataclass
+class MatchCandidate:
+    property_id: str
+    confidence: float
+    match_type: str  # exact, fuzzy, geocode
+    matched_fields: list[str]
+
+@dataclass
+class EntityResolutionResult:
+    canonical_id: str | None
+    confidence: float
+    matches: list[MatchCandidate]
+    action: str  # auto_merge, review, keep_separate
+
+class EntityResolutionService:
+    """
+    Cross-source property deduplication.
+    
+    Pipeline stages:
+    1. Blocking - Geohash/address to reduce comparison space
+    2. Pairwise comparison - Score field similarity
+    3. Classification - Determine merge action
+    4. Clustering - Assign canonical IDs
+    """
+    
+    CONFIDENCE_AUTO_MERGE = 0.90
+    CONFIDENCE_REVIEW = 0.70
+    CONFIDENCE_SEPARATE = 0.50
+    
+    def __init__(self, db):
+        self.db = db
+        self.geocoder = GeocodingService()
+    
+    async def resolve(
+        self,
+        address: str | None = None,
+        lat: float | None = None,
+        lng: float | None = None,
+        parcel_id: str | None = None,
+        source_record_id: str | None = None,
+    ) -> EntityResolutionResult:
+        """
+        Resolve a property to its canonical entity.
+        """
+        candidates = []
+        
+        # 1. BLOCKING: Find potential matches
+        if parcel_id:
+            # Exact parcel ID match is highest confidence
+            exact_matches = await self._find_by_parcel_id(parcel_id)
+            candidates.extend(exact_matches)
+        
+        if address:
+            # Normalized address blocking
+            normalized = normalize(address)
+            address_matches = await self._find_by_address(normalized)
+            candidates.extend(address_matches)
+        
+        if lat and lng:
+            # Geohash blocking (properties within 100m)
+            geo_matches = await self._find_by_location(lat, lng, radius_meters=100)
+            candidates.extend(geo_matches)
+        
+        if not candidates:
+            return EntityResolutionResult(
+                canonical_id=None,
+                confidence=0.0,
+                matches=[],
+                action="keep_separate",
+            )
+        
+        # 2. PAIRWISE COMPARISON: Score each candidate
+        scored_candidates = []
+        for candidate in candidates:
+            score = await self._score_match(
+                address=address,
+                lat=lat,
+                lng=lng,
+                parcel_id=parcel_id,
+                candidate=candidate,
+            )
+            if score.confidence > 0.3:
+                scored_candidates.append(score)
+        
+        # 3. CLASSIFICATION: Determine action
+        scored_candidates.sort(key=lambda x: x.confidence, reverse=True)
+        
+        if not scored_candidates:
+            return EntityResolutionResult(
+                canonical_id=None,
+                confidence=0.0,
+                matches=[],
+                action="keep_separate",
+            )
+        
+        best_match = scored_candidates[0]
+        
+        if best_match.confidence >= self.CONFIDENCE_AUTO_MERGE:
+            action = "auto_merge"
+        elif best_match.confidence >= self.CONFIDENCE_REVIEW:
+            action = "review"
+        else:
+            action = "keep_separate"
+        
+        return EntityResolutionResult(
+            canonical_id=best_match.property_id if action == "auto_merge" else None,
+            confidence=best_match.confidence,
+            matches=scored_candidates[:5],
+            action=action,
+        )
+    
+    async def _find_by_parcel_id(self, parcel_id: str) -> list[dict]:
+        """Find properties by parcel ID."""
+        from sqlalchemy import select
+        from app.models import Property
+        
+        stmt = select(Property).where(Property.county_apn == parcel_id).limit(5)
+        result = await self.db.execute(stmt)
+        return [{"property": p, "match_type": "parcel_id"} for p in result.scalars()]
+    
+    async def _find_by_address(self, normalized: NormalizedAddress) -> list[dict]:
+        """Find properties by normalized address."""
+        from sqlalchemy import select
+        from app.models import Property, Address
+        
+        if not normalized.street_address:
+            return []
+        
+        stmt = (
+            select(Property)
+            .join(Address)
+            .where(
+                Address.city == normalized.city,
+                Address.state == normalized.state,
+            )
+            .limit(20)
+        )
+        result = await self.db.execute(stmt)
+        return [{"property": p, "match_type": "address"} for p in result.scalars()]
+    
+    async def _find_by_location(
+        self,
+        lat: float,
+        lng: float,
+        radius_meters: float,
+    ) -> list[dict]:
+        """Find properties by location."""
+        from sqlalchemy import select
+        from geoalchemy2.functions import ST_DWithin, ST_MakePoint, ST_SetSRID
+        from app.models import Property
+        
+        point = ST_SetSRID(ST_MakePoint(lng, lat), 4326)
+        
+        stmt = (
+            select(Property)
+            .where(ST_DWithin(Property.location, point, radius_meters))
+            .limit(10)
+        )
+        result = await self.db.execute(stmt)
+        return [{"property": p, "match_type": "geocode"} for p in result.scalars()]
+    
+    async def _score_match(
+        self,
+        address: str | None,
+        lat: float | None,
+        lng: float | None,
+        parcel_id: str | None,
+        candidate: dict,
+    ) -> MatchCandidate:
+        """Score similarity between input and candidate."""
+        prop = candidate["property"]
+        matched_fields = []
+        scores = []
+        
+        # Parcel ID match (highest weight)
+        if parcel_id and prop.county_apn:
+            if parcel_id == prop.county_apn:
+                scores.append(1.0)
+                matched_fields.append("parcel_id")
+        
+        # Address similarity
+        if address and prop.address:
+            normalized_input = normalize(address)
+            normalized_db = normalize(prop.address.formatted_address or "")
+            
+            if normalized_input.formatted_address and normalized_db.formatted_address:
+                sim = jaro_winkler_similarity(
+                    normalized_input.formatted_address.lower(),
+                    normalized_db.formatted_address.lower(),
+                )
+                if sim > 0.85:
+                    scores.append(sim)
+                    matched_fields.append("address")
+        
+        # Location proximity
+        if lat and lng and prop.address:
+            if prop.address.latitude and prop.address.longitude:
+                distance = self._haversine_distance(
+                    lat, lng,
+                    prop.address.latitude, prop.address.longitude,
+                )
+                if distance < 10:  # Within 10 meters
+                    scores.append(0.95)
+                    matched_fields.append("location")
+                elif distance < 50:
+                    scores.append(0.80)
+                    matched_fields.append("location")
+        
+        confidence = sum(scores) / len(scores) if scores else 0.0
+        
+        return MatchCandidate(
+            property_id=prop.id,
+            confidence=confidence,
+            match_type=candidate["match_type"],
+            matched_fields=matched_fields,
+        )
+    
+    def _haversine_distance(
+        self,
+        lat1: float, lon1: float,
+        lat2: float, lon2: float,
+    ) -> float:
+        """Calculate distance between two points in meters."""
+        R = 6371000  # Earth radius in meters
+        
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        delta_phi = math.radians(lat2 - lat1)
+        delta_lambda = math.radians(lon2 - lon1)
+        
+        a = (
+            math.sin(delta_phi / 2) ** 2 +
+            math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+        )
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        
+        return R * c
+```
+
+### S9: Data Quality Scoring Service
+Create `api/app/services/quality.py`.
+
+```python
+# api/app/services/quality.py
+from datetime import datetime, timedelta
+from dataclasses import dataclass
+
+@dataclass
+class DataQualityScore:
+    score: float  # Overall 0-1
+    completeness: float
+    accuracy: float
+    consistency: float
+    timeliness: float
+    validity: float
+    uniqueness: float
+    freshness_hours: int
+    confidence: str  # low, medium, high
+
+REQUIRED_FIELDS = [
+    "address", "city", "state", "zip_code",
+    "latitude", "longitude",
+    "lot_sqft", "property_type",
+]
+
+OPTIONAL_FIELDS = [
+    "bedrooms", "bathrooms", "sqft", "year_built",
+    "assessed_value", "estimated_value",
+    "zoning", "owner_name",
+]
+
+def calculate_quality_score(
+    property_data: dict,
+    source_timestamp: datetime | None = None,
+    duplicate_check: bool = False,
+) -> DataQualityScore:
+    """
+    Calculate data quality score for a property record.
+    
+    Formula:
+    score = (completeness × 0.25) + (accuracy × 0.25) + 
+            (consistency × 0.20) + (timeliness × 0.15) + 
+            (validity × 0.10) + (uniqueness × 0.05)
+    """
+    
+    # Completeness: What fraction of required/optional fields are present?
+    required_present = sum(
+        1 for f in REQUIRED_FIELDS
+        if property_data.get(f) is not None
+    )
+    optional_present = sum(
+        1 for f in OPTIONAL_FIELDS
+        if property_data.get(f) is not None
+    )
+    
+    completeness = (
+        (required_present / len(REQUIRED_FIELDS)) * 0.7 +
+        (optional_present / len(OPTIONAL_FIELDS)) * 0.3
+    )
+    
+    # Accuracy: Validate field formats and ranges
+    accuracy_checks = []
+    
+    # ZIP code format
+    zip_code = property_data.get("zip_code", "")
+    if zip_code:
+        accuracy_checks.append(1.0 if len(zip_code) == 5 and zip_code.isdigit() else 0.5)
+    
+    # State is valid 2-letter code
+    state = property_data.get("state", "")
+    if state:
+        accuracy_checks.append(1.0 if len(state) == 2 and state.isalpha() else 0.5)
+    
+    # Year built is reasonable
+    year_built = property_data.get("year_built")
+    if year_built:
+        accuracy_checks.append(1.0 if 1800 <= year_built <= 2030 else 0.5)
+    
+    # Coordinates are valid
+    lat = property_data.get("latitude")
+    lng = property_data.get("longitude")
+    if lat and lng:
+        accuracy_checks.append(1.0 if -90 <= lat <= 90 and -180 <= lng <= 180 else 0.0)
+    
+    accuracy = sum(accuracy_checks) / len(accuracy_checks) if accuracy_checks else 0.8
+    
+    # Consistency: Cross-field validation
+    consistency_checks = []
+    
+    # Lot sqft > building sqft
+    lot_sqft = property_data.get("lot_sqft", 0) or 0
+    building_sqft = property_data.get("sqft", 0) or 0
+    if lot_sqft and building_sqft:
+        consistency_checks.append(1.0 if lot_sqft >= building_sqft else 0.5)
+    
+    # Assessed value reasonable given sqft
+    assessed = property_data.get("assessed_value", 0) or 0
+    if assessed and building_sqft:
+        price_per_sqft = assessed / building_sqft
+        consistency_checks.append(1.0 if 50 <= price_per_sqft <= 2000 else 0.7)
+    
+    consistency = sum(consistency_checks) / len(consistency_checks) if consistency_checks else 0.85
+    
+    # Timeliness: How fresh is the data?
+    freshness_hours = 0
+    if source_timestamp:
+        age = datetime.utcnow() - source_timestamp
+        freshness_hours = int(age.total_seconds() / 3600)
+        
+        if freshness_hours < 24:
+            timeliness = 1.0
+        elif freshness_hours < 168:  # 1 week
+            timeliness = 0.9
+        elif freshness_hours < 720:  # 30 days
+            timeliness = 0.8
+        elif freshness_hours < 2160:  # 90 days
+            timeliness = 0.7
+        else:
+            timeliness = 0.5
+    else:
+        timeliness = 0.7  # Unknown age
+    
+    # Validity: Schema compliance
+    validity = 0.95  # Assume valid if we got this far
+    
+    # Uniqueness: Is this a duplicate?
+    uniqueness = 1.0 if not duplicate_check else 0.95
+    
+    # Calculate weighted score
+    score = (
+        completeness * 0.25 +
+        accuracy * 0.25 +
+        consistency * 0.20 +
+        timeliness * 0.15 +
+        validity * 0.10 +
+        uniqueness * 0.05
+    )
+    
+    # Determine confidence level
+    if score >= 0.85:
+        confidence = "high"
+    elif score >= 0.70:
+        confidence = "medium"
+    else:
+        confidence = "low"
+    
+    return DataQualityScore(
+        score=round(score, 3),
+        completeness=round(completeness, 3),
+        accuracy=round(accuracy, 3),
+        consistency=round(consistency, 3),
+        timeliness=round(timeliness, 3),
+        validity=round(validity, 3),
+        uniqueness=round(uniqueness, 3),
+        freshness_hours=freshness_hours,
+        confidence=confidence,
+    )
+```
+
+### S10: Data Ingestion Pipeline
+Create `api/app/services/ingestion/pipeline.py`.
+
+```python
+# api/app/services/ingestion/pipeline.py
+from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.models import Property, Address, Building, Valuation
+from app.services.ingestion.base import RawPropertyRecord
+from app.services.address import normalize
+from app.services.geocoding import GeocodingService
+from app.services.entity_resolution import EntityResolutionService
+from app.services.quality import calculate_quality_score
+import hashlib
+import structlog
+
+logger = structlog.get_logger()
+
+class IngestionPipeline:
+    """
+    ETL pipeline for property data ingestion.
+    
+    Stages:
+    1. Extract - Fetch from provider
+    2. Transform - Normalize, enrich, deduplicate
+    3. Load - Upsert to database
+    """
+    
+    def __init__(self, db: AsyncSession):
+        self.db = db
+        self.geocoder = GeocodingService()
+        self.entity_resolver = EntityResolutionService(db)
+    
+    async def process_record(self, raw: RawPropertyRecord) -> str | None:
+        """
+        Process a single raw record through the pipeline.
+        
+        Returns the property ID if successful, None otherwise.
+        """
+        try:
+            # 1. TRANSFORM: Normalize address
+            address = None
+            if raw.address_raw:
+                normalized = normalize(raw.address_raw)
+                address = normalized
+            
+            # 2. TRANSFORM: Geocode if needed
+            lat, lng = raw.latitude, raw.longitude
+            if (not lat or not lng) and address:
+                geo_result = await self.geocoder.geocode(
+                    address=address.formatted_address or "",
+                )
+                if geo_result:
+                    lat, lng = geo_result.latitude, geo_result.longitude
+            
+            # 3. TRANSFORM: Entity resolution
+            entity_result = await self.entity_resolver.resolve(
+                address=address.formatted_address if address else None,
+                lat=lat,
+                lng=lng,
+                parcel_id=raw.parcel_id,
+                source_record_id=raw.source_record_id,
+            )
+            
+            # 4. Generate property ID
+            if entity_result.canonical_id and entity_result.action == "auto_merge":
+                property_id = entity_result.canonical_id
+            else:
+                property_id = self._generate_property_id(raw, address)
+            
+            # 5. TRANSFORM: Calculate quality score
+            property_data = self._extract_property_data(raw.raw_data)
+            quality = calculate_quality_score(
+                property_data,
+                source_timestamp=raw.extraction_timestamp,
+            )
+            
+            # 6. LOAD: Upsert to database
+            await self._upsert_property(
+                property_id=property_id,
+                raw=raw,
+                address=address,
+                lat=lat,
+                lng=lng,
+                quality=quality,
+            )
+            
+            logger.info(
+                "Processed property",
+                property_id=property_id,
+                source=raw.source_system,
+                quality_score=quality.score,
+            )
+            
+            return property_id
+            
+        except Exception as e:
+            logger.error(
+                "Failed to process record",
+                source=raw.source_system,
+                source_id=raw.source_record_id,
+                error=str(e),
+            )
+            return None
+    
+    def _generate_property_id(
+        self,
+        raw: RawPropertyRecord,
+        address,
+    ) -> str:
+        """Generate a Dharma property ID."""
+        # Format: {STATE}-{COUNTY}-{HASH}
+        state = address.state if address else "XX"
+        
+        # Create hash from source ID or address
+        hash_input = f"{raw.source_system}:{raw.source_record_id}"
+        if raw.parcel_id:
+            hash_input = raw.parcel_id
+        
+        hash_suffix = hashlib.md5(hash_input.encode()).hexdigest()[:10].upper()
+        
+        return f"{state}-UNKNOWN-{hash_suffix}"
+    
+    def _extract_property_data(self, raw_data: dict) -> dict:
+        """Extract property fields from raw data (provider-specific)."""
+        # This should be customized per provider
+        return {
+            "address": raw_data.get("address"),
+            "city": raw_data.get("city"),
+            "state": raw_data.get("state"),
+            "zip_code": raw_data.get("zip"),
+            "latitude": raw_data.get("lat"),
+            "longitude": raw_data.get("lng"),
+            "lot_sqft": raw_data.get("lot_sqft"),
+            "property_type": raw_data.get("property_type"),
+            "bedrooms": raw_data.get("bedrooms"),
+            "bathrooms": raw_data.get("bathrooms"),
+            "sqft": raw_data.get("sqft"),
+            "year_built": raw_data.get("year_built"),
+            "assessed_value": raw_data.get("assessed_value"),
+        }
+    
+    async def _upsert_property(
+        self,
+        property_id: str,
+        raw: RawPropertyRecord,
+        address,
+        lat: float | None,
+        lng: float | None,
+        quality,
+    ) -> None:
+        """Insert or update property in database."""
+        from sqlalchemy import select
+        from geoalchemy2.functions import ST_MakePoint, ST_SetSRID
+        
+        # Check if exists
+        stmt = select(Property).where(Property.id == property_id)
+        result = await self.db.execute(stmt)
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            # Update
+            existing.source_system = raw.source_system
+            existing.quality_score = quality.score
+            existing.quality_completeness = quality.completeness
+            existing.quality_accuracy = quality.accuracy
+            existing.quality_consistency = quality.consistency
+            existing.quality_timeliness = quality.timeliness
+            existing.quality_validity = quality.validity
+            existing.quality_uniqueness = quality.uniqueness
+            existing.freshness_hours = quality.freshness_hours
+            existing.updated_at = datetime.utcnow()
+        else:
+            # Insert
+            prop = Property(
+                id=property_id,
+                source_system=raw.source_system,
+                source_type=raw.source_type,
+                source_record_id=raw.source_record_id,
+                quality_score=quality.score,
+                quality_completeness=quality.completeness,
+                quality_accuracy=quality.accuracy,
+                quality_consistency=quality.consistency,
+                quality_timeliness=quality.timeliness,
+                quality_validity=quality.validity,
+                quality_uniqueness=quality.uniqueness,
+                freshness_hours=quality.freshness_hours,
+            )
+            
+            # Set location if available
+            if lat and lng:
+                prop.location = f"SRID=4326;POINT({lng} {lat})"
+            
+            self.db.add(prop)
+        
+        await self.db.commit()
+```
+
+### S11: Batch Import CLI
+Create `api/app/cli/import_data.py` for command-line imports.
+
+```python
+# api/app/cli/import_data.py
+import asyncio
+import argparse
+from app.database.connection import async_session_maker
+from app.services.ingestion.pipeline import IngestionPipeline
+from app.services.ingestion.providers.regrid import RegridAdapter
+from app.services.ingestion.providers.attom import ATTOMAdapter
+from app.services.ingestion.providers.census import CensusAdapter
+
+async def import_region(
+    provider: str,
+    state: str,
+    county: str | None = None,
+    limit: int | None = None,
+    dry_run: bool = False,
+):
+    """Import properties for a region from a provider."""
+    
+    # Get provider adapter
+    if provider == "regrid":
+        adapter = RegridAdapter()
+    elif provider == "attom":
+        adapter = ATTOMAdapter()
+    else:
+        print(f"Unknown provider: {provider}")
+        return
+    
+    print(f"Importing from {provider} for {state}" + (f"/{county}" if county else ""))
+    
+    async with async_session_maker() as db:
+        pipeline = IngestionPipeline(db)
+        
+        count = 0
+        errors = 0
+        
+        async for raw_record in adapter.stream_region(state, county, limit):
+            if raw_record is None:
+                continue
+            
+            if dry_run:
+                print(f"Would process: {raw_record.source_record_id}")
+            else:
+                result = await pipeline.process_record(raw_record)
+                if result:
+                    count += 1
+                else:
+                    errors += 1
+            
+            if limit and count >= limit:
+                break
+    
+    print(f"Imported {count} properties, {errors} errors")
+
+def main():
+    parser = argparse.ArgumentParser(description="Import property data")
+    parser.add_argument("--provider", required=True, help="Data provider (regrid, attom, census)")
+    parser.add_argument("--state", required=True, help="State code (TX, CA, etc.)")
+    parser.add_argument("--county", help="County name (optional)")
+    parser.add_argument("--limit", type=int, help="Max records to import")
+    parser.add_argument("--dry-run", action="store_true", help="Don't actually import")
+    
+    args = parser.parse_args()
+    
+    asyncio.run(import_region(
+        provider=args.provider,
+        state=args.state,
+        county=args.county,
+        limit=args.limit,
+        dry_run=args.dry_run,
+    ))
+
+if __name__ == "__main__":
+    main()
+```
+
+### S12: Provider Adapter Package
+Create `api/app/services/ingestion/providers/__init__.py`.
+
+```python
+# api/app/services/ingestion/providers/__init__.py
+from .regrid import RegridAdapter
+from .attom import ATTOMAdapter
+from .census import CensusAdapter
+from .fema import FEMAAdapter
+
+__all__ = ["RegridAdapter", "ATTOMAdapter", "CensusAdapter", "FEMAAdapter"]
 ```
 
 ---
 
 ## Acceptance Criteria
-- `POST /v1/auth/signup` creates account and returns API key
-- API key validation works via Redis cache + database fallback
-- Rate limiting enforces per-second and daily limits by tier
-- Usage tracking records all API calls
-- `GET /v1/account/usage` returns usage summary
-- `GET /v1/account/billing` returns billing info
-- `POST /webhooks/stripe` handles Stripe events
-- Free tier: 3,000 queries/month, 1/second
-- Pro tier: 50,000 queries/month, 10/second
-- Business tier: 500,000 queries/month, 50/second
+- Provider adapters work for Regrid, ATTOM, Census, FEMA
+- Address normalization produces USPS-standard format
+- Geocoding returns coordinates with accuracy info
+- Entity resolution identifies duplicates with confidence scores
+- Data quality scores calculated for all records
+- Pipeline processes records and upserts to database
+- CLI tool can import regions with dry-run mode
 - All new code passes `ruff check` and `mypy --strict`
