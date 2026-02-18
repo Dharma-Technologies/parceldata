@@ -3,8 +3,8 @@
   "title": "Data Pipeline",
   "branchName": "main",
   "stories": [
-    {"id": "S1", "title": "Provider Adapter Base Class", "passes": false},
-    {"id": "S2", "title": "Regrid Adapter", "passes": false},
+    {"id": "S1", "title": "Provider Adapter Base Class", "passes": true},
+    {"id": "S2", "title": "Regrid Adapter", "passes": true},
     {"id": "S3", "title": "ATTOM Adapter", "passes": false},
     {"id": "S4", "title": "Census Adapter", "passes": false},
     {"id": "S5", "title": "FEMA Adapter", "passes": false},
