@@ -282,244 +282,234 @@ docker-compose up -d
 8. Use environment variables for ALL configuration (no hardcoded values)
 9. MIT license — code is open source
 
-## Current Stage: P10-07-sdk-docs
+## Current Stage: P10-08-landing-page
 
-# P10-07: Python SDK & Documentation
+# P10-08: Landing Page
 
-**Phase 7 — SDK, Documentation & Agent Readability**
+**Phase 8 — ParcelData.ai Landing Page**
 
-Build the Python SDK, API documentation, and agent-readable endpoints.
+Adapt the Aura Finance template into the ParcelData.ai landing page using the design brief.
+
+---
+
+## Template Reference
+The base template is at `/home/numen/dharma/templates/aura-finance/`.
+Files: `index.html`, `about.html`, `features.html`, `pricing.html`, `login.html`
+
+The landing page design brief is at `/home/numen/.openclaw/workspace/plans/re-data-service/LANDING_PAGE_BRIEF.md`.
+
+## Design Direction
+- **Keep:** Dark theme, animations (beams, sonar, spotlight cards), Tailwind CSS, pill nav, serif+sans font combo
+- **Change:** All content, brand colors (sky blue → ParcelData green/teal #10B981 or keep blue), brand name, copy, features, pricing
+- **Add:** Interactive code examples, MCP integration showcase, ASCII art hero concept, agent readability features
+- **Remove:** Fake testimonials, "Dr. Elias Thorne", financial/banking language, UnicornStudio dependency (replace with CSS-only effects)
+- **Vibe:** Stripe/Supabase energy. Developer-first. Code-forward. Zero stock photos. Zero "schedule a demo."
 
 ---
 
 ## Stories
 
-### Story 1: Python SDK Package Structure
-**Directory:** `sdk/`
-
-Create a pip-installable Python SDK:
-
-```
-sdk/
-├── parceldata/
-│   ├── __init__.py          # Version, top-level imports
-│   ├── client.py            # ParcelDataClient class
-│   ├── models.py            # Pydantic response models
-│   ├── exceptions.py        # Custom exceptions
-│   ├── types.py             # Type definitions
-│   └── utils.py             # Helpers
-├── tests/
-│   ├── test_client.py
-│   ├── test_models.py
-│   └── conftest.py
-├── setup.py
-├── pyproject.toml
-├── README.md
-└── LICENSE
-```
-
-**Requirements:**
-- `httpx` for async HTTP
-- `pydantic` for models
-- Python 3.9+ compatible
-- Type hints throughout
+### Story 1: Copy Base Template to Site Directory
+**Action:** Copy template files from `/home/numen/dharma/templates/aura-finance/` to `site/`
+- Copy `index.html` as starting point
+- Copy CSS/styling patterns
+- Do NOT copy images or UnicornStudio scripts
 
 ---
 
-### Story 2: ParcelDataClient Implementation
-**File:** `sdk/parceldata/client.py`
+### Story 2: Brand & Navigation Replacement
+**File:** `site/index.html`
 
+Replace throughout:
+- "Aura" → "ParcelData"
+- "Aura Financial" → "ParcelData.ai"
+- Logo icon: Use a map/parcel icon (inline SVG, Lucide `map-pin` or `layers` or `grid-3x3`)
+- Nav links: Docs, Pricing, GitHub (external link to repo), API Reference
+- CTA button: "Get API Key" (not "Start Engine")
+- Brand color: Keep `#38BDF8` (sky blue) OR switch to `#10B981` (emerald/teal) — pick one, use consistently
+- Font: Keep Inter + Newsreader combo (it works)
+
+---
+
+### Story 3: Hero Section
+**File:** `site/index.html`
+
+Replace hero content:
+- Status pill: "Open Source · MIT Licensed" (with green dot)
+- Headline: `Clean data for smart agents.` (italic serif, large)
+- Subheadline: "Universal real estate data via API and MCP. Property records, valuations, ownership, zoning — structured for machines, readable by humans."
+- Primary CTA: "Get API Key" (shiny animated button)
+- Secondary CTA: "View Documentation" (outline button with arrow)
+
+Optional: Add a code snippet preview floating on the right side (replacing the sonar visualization):
 ```python
-class ParcelDataClient:
-    def __init__(self, api_key: str, base_url: str = "https://api.parceldata.ai/v1"):
-        ...
+from parceldata import ParcelData
 
-    async def property_lookup(self, parcel_id: str, tier: str = "standard") -> Property:
-        """Look up a single property by parcel ID."""
-
-    async def property_search(self, query: PropertySearchQuery) -> SearchResults:
-        """Search properties with filters."""
-
-    async def get_comps(self, parcel_id: str, radius_miles: float = 1.0, limit: int = 10) -> list[Property]:
-        """Get comparable properties."""
-
-    async def batch_lookup(self, parcel_ids: list[str]) -> BatchResults:
-        """Batch property lookup (up to 100)."""
-
-    async def geocode(self, address: str) -> GeocodingResult:
-        """Geocode an address to lat/lng + parcel."""
-
-    def property_lookup_sync(self, parcel_id: str, tier: str = "standard") -> Property:
-        """Synchronous wrapper."""
-```
-
-Both async and sync methods. Automatic retry with exponential backoff. Rate limit handling.
-
----
-
-### Story 3: SDK Response Models
-**File:** `sdk/parceldata/models.py`
-
-Pydantic models matching API responses:
-- `Property` — full property record
-- `PropertySummary` — compact version
-- `SearchResults` — paginated results
-- `BatchResults` — batch response
-- `GeocodingResult` — geocoding response
-- `DataQuality` — quality scores
-- `Provenance` — data source metadata
-
-Token tier support: `micro`, `standard`, `full`
-
----
-
-### Story 4: SDK Error Handling
-**File:** `sdk/parceldata/exceptions.py`
-
-```python
-class ParcelDataError(Exception): ...
-class AuthenticationError(ParcelDataError): ...
-class RateLimitError(ParcelDataError): ...
-class NotFoundError(ParcelDataError): ...
-class ValidationError(ParcelDataError): ...
-class QuotaExceededError(ParcelDataError): ...
+pd = ParcelData(api_key="pk_live_...")
+property = pd.lookup("CA-037-1234-567")
+print(property.address)      # "123 Main St, Los Angeles, CA"
+print(property.value)         # "$1,250,000"
+print(property.quality_score) # 0.94
 ```
 
 ---
 
-### Story 5: SDK Tests
-**Directory:** `sdk/tests/`
+### Story 4: Feature Cards Section
+**File:** `site/index.html`
 
-- Test client initialization
-- Test all endpoint methods (mocked responses)
-- Test error handling
-- Test retry logic
-- Test sync wrappers
-- Test model serialization
+Replace the 3 feature cards:
 
----
+**Card 1: "Property Intelligence"**
+- Icon: Building/Home icon
+- Description: "Unified property records from 20+ data sources. Ownership, tax, zoning, permits, valuations — all normalized to a single schema."
+- Visual: Mock API response card showing a property JSON snippet
 
-### Story 6: OpenAPI Specification
-**File:** `api/app/openapi_config.py`
+**Card 2: "MCP Native"**
+- Icon: Plug/Connection icon
+- Description: "First-class Model Context Protocol support. Connect any AI agent to real estate data in one line. Tools: property_lookup, search, comps, batch."
+- Visual: MCP connection diagram (agent → MCP → ParcelData → data sources)
 
-Configure FastAPI's auto-generated OpenAPI spec:
-- Title: "ParcelData.ai API"
-- Version: "1.0.0"
-- Description with examples
-- Tag grouping (Properties, Search, Batch, Auth, Admin)
-- Response examples for every endpoint
-- Error response schemas
-
-Expose at `/v1/docs` (Swagger UI) and `/v1/redoc` (ReDoc).
+**Card 3: "Entity Resolution"**
+- Icon: Fingerprint/Match icon
+- Description: "Cross-source identity matching with confidence scores. One property, one record, regardless of how many sources report it."
+- Visual: Data quality score visualization (0.94 with breakdown)
 
 ---
 
-### Story 7: /llms.txt Endpoint
-**File:** `api/app/routes/agent_readable.py`
+### Story 5: Code Examples Section
+**File:** `site/index.html`
 
-```
-GET /llms.txt
-```
+Replace the "testimonial/quote" section with interactive code examples:
 
-Returns plain text description of the API optimized for LLM consumption:
-```
-# ParcelData.ai API
+Tab-based code switcher showing:
+1. **Python** — SDK usage
+2. **curl** — REST API
+3. **TypeScript** — MCP integration
+4. **GraphQL** — Query example
 
+Dark code blocks with syntax highlighting (use `<pre><code>` with manual span coloring, no external lib needed).
+
+---
+
+### Story 6: Pricing Section
+**File:** `site/index.html`
+
+Replace pricing cards with ParcelData tiers:
+
+**Free** — $0/mo
+- 1,000 lookups/month
+- Standard response tier
+- Community support
+- CTA: "Start Free"
+
+**Pro** — $49/mo
+- 50,000 lookups/month
+- All response tiers
+- Batch API (100/request)
+- Priority support
+- CTA: "Get Started"
+
+**Scale** — Usage-based
+- Unlimited lookups
+- Volume discounts
+- SLA guarantee
+- Dedicated support
+- CTA: "Contact Us"
+
+Toggle: Monthly / Annual (20% discount)
+
+---
+
+### Story 7: Data Coverage Section
+**File:** `site/index.html`
+
+New section showing data coverage:
+- "150M+ Properties" stat
+- "50 States" coverage
+- "20+ Data Sources" integrated
+- Visual: Simple US map or grid showing coverage density
+- Data source logos (in monotone marquee): Regrid, ATTOM, Census, FEMA, EPA
+
+---
+
+### Story 8: Agent Readability Section
+**File:** `site/index.html`
+
+Section showcasing agent-first design:
+- `/llms.txt` — "Your agent reads our docs"
+- MCP tools — "Connect in one line"
+- Token-optimized responses — "Micro (500 tokens) → Full (32K tokens)"
+- JSON-LD — "Structured data in every response"
+
+---
+
+### Story 9: Footer
+**File:** `site/index.html`
+
+Replace footer:
+- Brand: ParcelData.ai
+- Links: Documentation, API Reference, GitHub, Status, Privacy, Terms
+- Social: GitHub, X/Twitter, Discord
+- "Open Source · MIT License"
+- Remove Stripe/Visa logos (not relevant)
+- Add: "Built by Dharma Technologies"
+
+---
+
+### Story 10: /llms.txt Static File
+**File:** `site/llms.txt`
+
+Create a static `/llms.txt` file for the landing page domain:
+```
+# ParcelData.ai
 > Clean, universal real estate data for AI agents.
 
-## Base URL
-https://api.parceldata.ai/v1
+## Quick Start
+pip install parceldata
 
-## Authentication
-API key via X-API-Key header or ?api_key= query parameter.
+## API
+Base URL: https://api.parceldata.ai/v1
+Auth: API key via X-API-Key header
 
-## Endpoints
-
-### Property Lookup
-GET /v1/properties/{parcel_id}
-Returns property details. Use ?tier=micro|standard|full for token optimization.
-
-### Property Search
-GET /v1/properties/search?query={text}&lat={lat}&lng={lng}&radius={miles}
-Search properties by text, location, or filters.
-
-### Comparable Properties
-GET /v1/properties/{parcel_id}/comps?radius=1.0&limit=10
-Get comparable properties near a given property.
-
-### Batch Lookup
-POST /v1/properties/batch
-Body: {"parcel_ids": ["ID1", "ID2", ...]}
-Look up multiple properties (max 100 per request).
-
-## MCP Server
-Connect via MCP at mcp://api.parceldata.ai/v1
+## MCP
+Server: mcp://api.parceldata.ai/v1
 Tools: property_lookup, property_search, get_comps, batch_lookup
+
+## Links
+- API Docs: https://api.parceldata.ai/v1/docs
+- GitHub: https://github.com/Dharma-Technologies/parceldata
+- SDK: pip install parceldata
 ```
 
 ---
 
-### Story 8: /.well-known/ai-plugin.json
-**File:** `api/app/routes/agent_readable.py`
+### Story 11: ai-plugin.json Static File
+**File:** `site/.well-known/ai-plugin.json`
 
-```json
-{
-  "schema_version": "v1",
-  "name_for_human": "ParcelData.ai",
-  "name_for_model": "parceldata",
-  "description_for_human": "Clean, universal real estate data API",
-  "description_for_model": "Access US property records, valuations, ownership, tax, zoning, and spatial data. Use for property lookups, comparable analysis, and batch data retrieval.",
-  "auth": {
-    "type": "service_http",
-    "authorization_type": "bearer"
-  },
-  "api": {
-    "type": "openapi",
-    "url": "https://api.parceldata.ai/v1/openapi.json"
-  }
-}
-```
+OpenAI-compatible plugin manifest for the landing page domain.
 
 ---
 
-### Story 9: JSON-LD Structured Data
-**File:** `api/app/middleware/jsonld.py`
+### Story 12: Meta Tags & SEO
+**File:** `site/index.html`
 
-Add JSON-LD `<script type="application/ld+json">` to HTML responses:
-- Organization schema for ParcelData.ai
-- WebAPI schema describing the API
-- DataCatalog schema for available datasets
-
----
-
-### Story 10: Documentation README
-**Files:** `README.md`, `docs/QUICKSTART.md`, `docs/API_REFERENCE.md`
-
-Root README:
-- What is ParcelData
-- Quick start (3 lines: install, init, query)
-- Link to full docs
-- MIT license badge
-- Status badges
-
-QUICKSTART.md:
-- Install SDK: `pip install parceldata`
-- Get API key
-- First query example
-- MCP setup example
-
-API_REFERENCE.md:
-- All endpoints with curl examples
-- Response format documentation
-- Rate limits and quotas
-- Error codes
+- Title: "ParcelData.ai — Clean Real Estate Data for AI Agents"
+- Meta description optimized for search
+- Open Graph tags (title, description, image)
+- Twitter card tags
+- Favicon (simple SVG inline)
+- Canonical URL: https://parceldata.ai
 
 ---
 
 ## Acceptance Criteria
-- [ ] `pip install -e sdk/` works
-- [ ] All SDK tests pass
-- [ ] `/llms.txt` returns valid agent-readable text
-- [ ] `/.well-known/ai-plugin.json` returns valid plugin manifest
-- [ ] OpenAPI spec is complete with examples
-- [ ] README has working quick start
+- [ ] Landing page renders correctly in browser
+- [ ] All "Aura" references removed
+- [ ] Content matches ParcelData product
+- [ ] Code examples are accurate and working
+- [ ] Pricing matches plan
+- [ ] Mobile responsive
+- [ ] `/llms.txt` accessible
+- [ ] `/.well-known/ai-plugin.json` accessible
+- [ ] No external dependencies that require paid accounts (UnicornStudio removed)
+- [ ] Dark theme preserved with consistent brand color
