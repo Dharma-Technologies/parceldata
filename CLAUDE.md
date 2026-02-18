@@ -282,588 +282,797 @@ docker-compose up -d
 8. Use environment variables for ALL configuration (no hardcoded values)
 9. MIT license — code is open source
 
-## Current Stage: P10-01-api-foundation
+## Current Stage: P10-02-data-models
 
-# PRD: P10-01 — API Foundation
+# PRD: P10-02 — Data Models
 
 ## Overview
-Establish the core FastAPI application structure with configuration, database connection, authentication, rate limiting, error handling, and health endpoints. This is the foundation all other stages build upon.
+Define all SQLAlchemy models for the ParcelData database schema, including Property, Address, Building, Valuation, Ownership, Zoning, Listing, Transaction, Permit, Environmental, School, and supporting models. Includes PostGIS spatial columns and pgvector embeddings.
 
 ---
 
 ## Stories
 
-### S1: FastAPI Application Entry Point
-Create `api/app/main.py` — the main FastAPI application.
+### S1: Base Model and Mixins
+Create `api/app/models/base.py` with common model mixins.
 
 ```python
-# api/app/main.py
-from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.config import settings
-from app.middleware import (
-    RateLimitMiddleware,
-    AuthenticationMiddleware,
-    ErrorHandlerMiddleware,
-)
-from app.routes import health, properties, analytics, auth
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup: connect to database, Redis
-    await startup()
-    yield
-    # Shutdown: close connections
-    await shutdown()
-
-app = FastAPI(
-    title="ParcelData API",
-    description="Real estate data for AI agents",
-    version="0.1.0",
-    lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
-)
-```
-
-- Include lifespan handler for startup/shutdown
-- Configure CORS, rate limiting, auth, error handler middleware
-- Mount routers for health, properties, analytics, auth
-- Set OpenAPI metadata for agent discovery
-- Export `app` for uvicorn
-
-### S2: Configuration Module
-Create `api/app/config.py` with Pydantic Settings.
-
-```python
-# api/app/config.py
-from pydantic_settings import BaseSettings, SettingsConfigDict
-
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
-    
-    # App
-    app_name: str = "ParcelData"
-    app_version: str = "0.1.0"
-    debug: bool = False
-    log_level: str = "INFO"
-    
-    # Database
-    database_url: str = "postgresql+asyncpg://parceldata:parceldata@localhost:5432/parceldata"
-    database_pool_size: int = 20
-    database_max_overflow: int = 10
-    
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
-    
-    # Auth
-    api_key_header: str = "X-API-Key"
-    auth_header: str = "Authorization"
-    
-    # Rate Limiting
-    rate_limit_free_per_second: int = 1
-    rate_limit_free_per_day: int = 100
-    rate_limit_pro_per_second: int = 10
-    rate_limit_pro_per_day: int = 10000
-    rate_limit_business_per_second: int = 50
-    rate_limit_business_per_day: int = 500000
-    
-    # External Services (placeholders)
-    regrid_api_key: str = ""
-    attom_api_key: str = ""
-
-settings = Settings()
-```
-
-- All configuration via environment variables
-- Sensible defaults for local development
-- Separate settings for each tier's rate limits
-- Include placeholders for data provider API keys
-
-### S3: Database Connection Module
-Create `api/app/database/connection.py` with async SQLAlchemy.
-
-```python
-# api/app/database/connection.py
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
-from app.config import settings
-
-engine = create_async_engine(
-    settings.database_url,
-    pool_size=settings.database_pool_size,
-    max_overflow=settings.database_max_overflow,
-    echo=settings.debug,
-)
-
-async_session_maker = async_sessionmaker(
-    engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
-
-class Base(DeclarativeBase):
-    pass
-
-async def get_db() -> AsyncSession:
-    async with async_session_maker() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
-        finally:
-            await session.close()
-```
-
-- Async engine with connection pooling
-- Session factory with proper lifecycle
-- `get_db` dependency for route handlers
-- Base class for all models
-
-### S4: Redis Connection Module
-Create `api/app/database/redis.py` for Redis cache and rate limiting.
-
-```python
-# api/app/database/redis.py
-from redis.asyncio import Redis, from_url
-from app.config import settings
-
-redis_client: Redis | None = None
-
-async def get_redis() -> Redis:
-    global redis_client
-    if redis_client is None:
-        redis_client = from_url(settings.redis_url, decode_responses=True)
-    return redis_client
-
-async def close_redis() -> None:
-    global redis_client
-    if redis_client is not None:
-        await redis_client.close()
-        redis_client = None
-```
-
-- Lazy initialization of Redis client
-- Async Redis client
-- Proper cleanup on shutdown
-
-### S5: Health Check Endpoint
-Create `api/app/routes/health.py` with health and version endpoints.
-
-```python
-# api/app/routes/health.py
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
-from app.database.connection import get_db
-from app.database.redis import get_redis
-from app.config import settings
-
-router = APIRouter(tags=["Health"])
-
-@router.get("/health")
-async def health_check(db: AsyncSession = Depends(get_db)):
-    """Check API health status."""
-    checks = {
-        "api": "healthy",
-        "database": "unknown",
-        "redis": "unknown",
-    }
-    
-    # Check database
-    try:
-        await db.execute(text("SELECT 1"))
-        checks["database"] = "healthy"
-    except Exception as e:
-        checks["database"] = f"unhealthy: {str(e)}"
-    
-    # Check Redis
-    try:
-        redis = await get_redis()
-        await redis.ping()
-        checks["redis"] = "healthy"
-    except Exception as e:
-        checks["redis"] = f"unhealthy: {str(e)}"
-    
-    overall = "healthy" if all(v == "healthy" for v in checks.values()) else "degraded"
-    
-    return {
-        "status": overall,
-        "checks": checks,
-        "version": settings.app_version,
-    }
-
-@router.get("/version")
-async def version():
-    """Get API version information."""
-    return {
-        "name": settings.app_name,
-        "version": settings.app_version,
-        "api_version": "v1",
-    }
-```
-
-- Health endpoint checks database AND Redis
-- Returns degraded status if any service is down
-- Version endpoint for API discovery
-
-### S6: Error Handler Middleware
-Create `api/app/middleware/error_handler.py` for consistent error responses.
-
-```python
-# api/app/middleware/error_handler.py
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-import structlog
-import uuid
-
-logger = structlog.get_logger()
-
-ERROR_CODES = {
-    400: "BAD_REQUEST",
-    401: "UNAUTHORIZED",
-    403: "FORBIDDEN",
-    404: "NOT_FOUND",
-    429: "RATE_LIMIT_EXCEEDED",
-    500: "INTERNAL_ERROR",
-    503: "SERVICE_UNAVAILABLE",
-}
-
-class ErrorHandlerMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        request_id = str(uuid.uuid4())[:8]
-        request.state.request_id = request_id
-        
-        try:
-            response = await call_next(request)
-            return response
-        except HTTPException as e:
-            return self._error_response(e.status_code, e.detail, request_id)
-        except Exception as e:
-            logger.exception("Unhandled error", request_id=request_id, error=str(e))
-            return self._error_response(500, "Internal server error", request_id)
-    
-    def _error_response(self, status_code: int, message: str, request_id: str):
-        return JSONResponse(
-            status_code=status_code,
-            content={
-                "error": {
-                    "code": ERROR_CODES.get(status_code, "UNKNOWN"),
-                    "message": message,
-                },
-                "request_id": request_id,
-            },
-        )
-```
-
-- Standard error response format with code, message, request_id
-- Catches all unhandled exceptions
-- Logs errors with structlog
-
-### S7: Authentication Middleware
-Create `api/app/middleware/authentication.py` for API key validation.
-
-```python
-# api/app/middleware/authentication.py
-from fastapi import Request, HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
-from app.config import settings
-from app.database.redis import get_redis
-
-# Paths that don't require authentication
-PUBLIC_PATHS = {"/health", "/version", "/docs", "/redoc", "/openapi.json"}
-
-class AuthenticationMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        path = request.url.path
-        
-        # Skip auth for public paths
-        if path in PUBLIC_PATHS or path.startswith("/docs") or path.startswith("/redoc"):
-            return await call_next(request)
-        
-        # Extract API key
-        api_key = (
-            request.headers.get(settings.api_key_header) or
-            request.headers.get(settings.auth_header, "").replace("Bearer ", "")
-        )
-        
-        if not api_key:
-            raise HTTPException(status_code=401, detail="API key required")
-        
-        # Validate API key (simple check for now, will be enhanced in auth stage)
-        key_info = await self._validate_key(api_key)
-        if key_info is None:
-            raise HTTPException(status_code=401, detail="Invalid API key")
-        
-        # Attach key info to request state
-        request.state.api_key = api_key
-        request.state.key_info = key_info
-        
-        return await call_next(request)
-    
-    async def _validate_key(self, api_key: str) -> dict | None:
-        """Validate API key and return key info. Returns None if invalid."""
-        redis = await get_redis()
-        key_data = await redis.hgetall(f"apikey:{api_key}")
-        
-        if not key_data:
-            # For development, accept any key starting with "pk_"
-            if api_key.startswith("pk_"):
-                return {"tier": "free", "key": api_key}
-            return None
-        
-        return key_data
-```
-
-- Supports both `X-API-Key` header and `Authorization: Bearer` header
-- Public paths skip authentication
-- Key info attached to request state for rate limiting
-
-### S8: Rate Limiting Middleware
-Create `api/app/middleware/rate_limit.py` for per-key rate limiting.
-
-```python
-# api/app/middleware/rate_limit.py
-from fastapi import Request, HTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
-from app.config import settings
-from app.database.redis import get_redis
-import time
-
-TIER_LIMITS = {
-    "free": (settings.rate_limit_free_per_second, settings.rate_limit_free_per_day),
-    "pro": (settings.rate_limit_pro_per_second, settings.rate_limit_pro_per_day),
-    "business": (settings.rate_limit_business_per_second, settings.rate_limit_business_per_day),
-    "enterprise": (1000, 10000000),  # Effectively unlimited
-}
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        # Skip rate limiting for public paths
-        if not hasattr(request.state, "api_key"):
-            return await call_next(request)
-        
-        api_key = request.state.api_key
-        tier = request.state.key_info.get("tier", "free")
-        per_second, per_day = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
-        
-        redis = await get_redis()
-        now = int(time.time())
-        today = now // 86400
-        
-        # Check per-second limit (sliding window)
-        second_key = f"rl:{api_key}:s:{now}"
-        second_count = await redis.incr(second_key)
-        if second_count == 1:
-            await redis.expire(second_key, 2)
-        
-        if second_count > per_second:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Rate limit exceeded ({per_second}/second for {tier} tier)",
-            )
-        
-        # Check daily limit
-        day_key = f"rl:{api_key}:d:{today}"
-        day_count = await redis.incr(day_key)
-        if day_count == 1:
-            await redis.expire(day_key, 86400)
-        
-        if day_count > per_day:
-            raise HTTPException(
-                status_code=429,
-                detail=f"Daily rate limit exceeded ({per_day}/day for {tier} tier)",
-            )
-        
-        # Add rate limit headers to response
-        response = await call_next(request)
-        response.headers["X-RateLimit-Limit"] = str(per_day)
-        response.headers["X-RateLimit-Remaining"] = str(max(0, per_day - day_count))
-        response.headers["X-RateLimit-Reset"] = str((today + 1) * 86400)
-        
-        return response
-```
-
-- Per-second and per-day limits
-- Tier-based limits (free, pro, business, enterprise)
-- Rate limit headers in response
-- Redis-backed counters
-
-### S9: Logging Configuration
-Create `api/app/logging_config.py` with structlog setup.
-
-```python
-# api/app/logging_config.py
-import structlog
-import logging
-from app.config import settings
-
-def configure_logging():
-    """Configure structlog for JSON logging."""
-    
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            structlog.processors.format_exc_info,
-            structlog.processors.UnicodeDecoder(),
-            structlog.processors.JSONRenderer() if not settings.debug else structlog.dev.ConsoleRenderer(),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, settings.log_level.upper())
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
-```
-
-- JSON logging for production
-- Console logging for development (debug mode)
-- Log level from settings
-
-### S10: CORS Configuration
-Update `api/app/main.py` to configure CORS.
-
-```python
-# In api/app/main.py
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure in production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"],
-)
-```
-
-- Allow all origins for development
-- Expose rate limit headers
-- Document production CORS configuration needed
-
-### S11: Alembic Migration Setup
-Initialize Alembic and create initial migration structure.
-
-```bash
-cd api
-alembic init alembic
-```
-
-Update `api/alembic/env.py`:
-```python
-# api/alembic/env.py
+# api/app/models/base.py
+from datetime import datetime
+from sqlalchemy import DateTime, String, Float
+from sqlalchemy.orm import Mapped, mapped_column
 from app.database.connection import Base
-from app.config import settings
 
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", ""))
-target_metadata = Base.metadata
+class TimestampMixin:
+    """Adds created_at and updated_at columns."""
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class DataQualityMixin:
+    """Adds data quality score columns."""
+    quality_score: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_completeness: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_accuracy: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_consistency: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_timeliness: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_validity: Mapped[float] = mapped_column(Float, default=0.0)
+    quality_uniqueness: Mapped[float] = mapped_column(Float, default=0.0)
+    freshness_hours: Mapped[int] = mapped_column(default=0)
+
+class ProvenanceMixin:
+    """Adds source tracking columns."""
+    source_system: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    source_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source_record_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    extraction_timestamp: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    raw_data_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    transformation_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
 ```
 
-Create `api/alembic.ini` with proper configuration.
-
-### S12: Startup and Shutdown Handlers
-Create `api/app/lifecycle.py` for application lifecycle.
+### S2: Property Model
+Create `api/app/models/property.py` — the core property entity.
 
 ```python
-# api/app/lifecycle.py
-from app.database.connection import engine
-from app.database.redis import get_redis, close_redis
-from app.logging_config import configure_logging
-import structlog
+# api/app/models/property.py
+from sqlalchemy import String, Integer, Float, Boolean, Text, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from geoalchemy2 import Geometry
+from pgvector.sqlalchemy import Vector
+from app.models.base import Base, TimestampMixin, DataQualityMixin, ProvenanceMixin
 
-logger = structlog.get_logger()
+class Property(Base, TimestampMixin, DataQualityMixin, ProvenanceMixin):
+    __tablename__ = "properties"
+    __table_args__ = {"schema": "parcel"}
+    
+    # Primary key - Dharma Parcel ID format: {STATE}-{COUNTY}-{APN_HASH}
+    id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    
+    # County parcel info
+    state_fips: Mapped[str] = mapped_column(String(2), index=True)
+    county_fips: Mapped[str] = mapped_column(String(3), index=True)
+    county_name: Mapped[str] = mapped_column(String(100))
+    county_apn: Mapped[str] = mapped_column(String(50), index=True)
+    
+    # Legal description
+    legal_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    subdivision_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    lot_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    block_number: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # Lot dimensions
+    lot_sqft: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    lot_acres: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lot_depth_ft: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lot_width_ft: Mapped[float | None] = mapped_column(Float, nullable=True)
+    lot_dimensions: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # Property type
+    property_type: Mapped[str | None] = mapped_column(String(50), index=True)
+    property_use: Mapped[str | None] = mapped_column(String(100))
+    
+    # Spatial
+    location: Mapped[Geometry] = mapped_column(Geometry("POINT", srid=4326), nullable=True)
+    boundary: Mapped[Geometry] = mapped_column(Geometry("POLYGON", srid=4326), nullable=True)
+    
+    # Census geography
+    census_tract: Mapped[str | None] = mapped_column(String(20), index=True)
+    census_block_group: Mapped[str | None] = mapped_column(String(20))
+    
+    # Embedding for semantic search
+    embedding: Mapped[Vector] = mapped_column(Vector(1536), nullable=True)
+    
+    # Entity resolution
+    canonical_id: Mapped[str | None] = mapped_column(String(50), index=True)
+    entity_confidence: Mapped[float] = mapped_column(Float, default=1.0)
+    
+    # Relationships
+    address = relationship("Address", back_populates="property", uselist=False)
+    buildings = relationship("Building", back_populates="property")
+    valuation = relationship("Valuation", back_populates="property", uselist=False)
+    ownership = relationship("Ownership", back_populates="property", uselist=False)
+    zoning = relationship("Zoning", back_populates="property", uselist=False)
+    listing = relationship("Listing", back_populates="property", uselist=False)
+    transactions = relationship("Transaction", back_populates="property")
+    permits = relationship("Permit", back_populates="property")
+    environmental = relationship("Environmental", back_populates="property", uselist=False)
+    school = relationship("School", back_populates="property", uselist=False)
+    hoa = relationship("HOA", back_populates="property", uselist=False)
+    tax = relationship("Tax", back_populates="property", uselist=False)
 
-async def startup():
-    """Initialize services on startup."""
-    configure_logging()
-    logger.info("Starting ParcelData API")
-    
-    # Test database connection
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda _: None)
-    logger.info("Database connected")
-    
-    # Test Redis connection
-    redis = await get_redis()
-    await redis.ping()
-    logger.info("Redis connected")
-
-async def shutdown():
-    """Cleanup on shutdown."""
-    logger.info("Shutting down ParcelData API")
-    
-    await close_redis()
-    await engine.dispose()
-    
-    logger.info("Shutdown complete")
+# Indexes
+Index("ix_properties_location", Property.location, postgresql_using="gist")
+Index("ix_properties_state_county", Property.state_fips, Property.county_fips)
+Index("ix_properties_property_type", Property.property_type)
 ```
 
-### S13: Middleware Package Export
-Create `api/app/middleware/__init__.py` to export middleware.
+### S3: Address Model
+Create `api/app/models/address.py` for normalized addresses.
 
 ```python
-# api/app/middleware/__init__.py
-from .error_handler import ErrorHandlerMiddleware
-from .authentication import AuthenticationMiddleware
-from .rate_limit import RateLimitMiddleware
+# api/app/models/address.py
+from sqlalchemy import String, Float, ForeignKey, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Address(Base, TimestampMixin):
+    __tablename__ = "addresses"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # Raw input
+    raw_address: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    
+    # Normalized components
+    street_number: Mapped[str | None] = mapped_column(String(20))
+    street_name: Mapped[str | None] = mapped_column(String(200))
+    street_suffix: Mapped[str | None] = mapped_column(String(20))  # St, Ave, Blvd
+    street_direction: Mapped[str | None] = mapped_column(String(10))  # N, S, E, W
+    unit_type: Mapped[str | None] = mapped_column(String(20))  # Apt, Suite, Unit
+    unit_number: Mapped[str | None] = mapped_column(String(20))
+    city: Mapped[str | None] = mapped_column(String(100), index=True)
+    state: Mapped[str | None] = mapped_column(String(2), index=True)
+    zip_code: Mapped[str | None] = mapped_column(String(5), index=True)
+    zip4: Mapped[str | None] = mapped_column(String(4))
+    county: Mapped[str | None] = mapped_column(String(100))
+    
+    # Formatted versions
+    street_address: Mapped[str | None] = mapped_column(String(300))  # Full street line
+    formatted_address: Mapped[str | None] = mapped_column(String(500))  # Full address
+    
+    # Geocoding
+    latitude: Mapped[float | None] = mapped_column(Float, index=True)
+    longitude: Mapped[float | None] = mapped_column(Float, index=True)
+    geocode_accuracy: Mapped[str | None] = mapped_column(String(20))  # rooftop, parcel, street
+    geocode_source: Mapped[str | None] = mapped_column(String(50))
+    
+    # Normalization
+    usps_validated: Mapped[bool] = mapped_column(default=False)
+    normalization_score: Mapped[float] = mapped_column(Float, default=0.0)
+    
+    property = relationship("Property", back_populates="address")
+
+Index("ix_addresses_city_state", Address.city, Address.state)
+Index("ix_addresses_zip", Address.zip_code)
+Index("ix_addresses_lat_lng", Address.latitude, Address.longitude)
+```
+
+### S4: Building Model
+Create `api/app/models/building.py` for structures on a property.
+
+```python
+# api/app/models/building.py
+from sqlalchemy import String, Integer, Float, Boolean, ForeignKey, Index
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Building(Base, TimestampMixin):
+    __tablename__ = "buildings"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), index=True)
+    building_number: Mapped[int] = mapped_column(Integer, default=1)  # For multi-building parcels
+    
+    # Size
+    sqft: Mapped[int | None] = mapped_column(Integer)
+    sqft_finished: Mapped[int | None] = mapped_column(Integer)
+    sqft_unfinished: Mapped[int | None] = mapped_column(Integer)
+    
+    # Structure
+    stories: Mapped[int | None] = mapped_column(Integer)
+    bedrooms: Mapped[int | None] = mapped_column(Integer, index=True)
+    bathrooms: Mapped[float | None] = mapped_column(Float)  # 2.5 for 2 full + 1 half
+    bathrooms_full: Mapped[int | None] = mapped_column(Integer)
+    bathrooms_half: Mapped[int | None] = mapped_column(Integer)
+    
+    # Age
+    year_built: Mapped[int | None] = mapped_column(Integer, index=True)
+    year_renovated: Mapped[int | None] = mapped_column(Integer)
+    effective_year_built: Mapped[int | None] = mapped_column(Integer)
+    
+    # Construction
+    construction_type: Mapped[str | None] = mapped_column(String(50))  # frame, masonry, steel
+    exterior_wall: Mapped[str | None] = mapped_column(String(50))
+    roof_type: Mapped[str | None] = mapped_column(String(50))
+    roof_material: Mapped[str | None] = mapped_column(String(50))
+    foundation_type: Mapped[str | None] = mapped_column(String(50))
+    heating_type: Mapped[str | None] = mapped_column(String(50))
+    cooling_type: Mapped[str | None] = mapped_column(String(50))
+    
+    # Features
+    garage_type: Mapped[str | None] = mapped_column(String(50))  # attached, detached, none
+    garage_spaces: Mapped[int | None] = mapped_column(Integer)
+    parking_spaces: Mapped[int | None] = mapped_column(Integer)
+    pool: Mapped[bool] = mapped_column(Boolean, default=False)
+    pool_type: Mapped[str | None] = mapped_column(String(50))
+    fireplace: Mapped[bool] = mapped_column(Boolean, default=False)
+    fireplace_count: Mapped[int | None] = mapped_column(Integer)
+    basement: Mapped[bool] = mapped_column(Boolean, default=False)
+    basement_type: Mapped[str | None] = mapped_column(String(50))  # full, partial, crawl
+    attic: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Quality
+    quality_grade: Mapped[str | None] = mapped_column(String(20))  # A+, A, B+, B, C+, C, D
+    condition: Mapped[str | None] = mapped_column(String(20))  # excellent, good, fair, poor
+    
+    property = relationship("Property", back_populates="buildings")
+
+Index("ix_buildings_property_id", Building.property_id)
+Index("ix_buildings_beds_baths", Building.bedrooms, Building.bathrooms)
+```
+
+### S5: Valuation Model
+Create `api/app/models/valuation.py` for property values.
+
+```python
+# api/app/models/valuation.py
+from datetime import date
+from sqlalchemy import String, Integer, Float, Date, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Valuation(Base, TimestampMixin):
+    __tablename__ = "valuations"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # Assessed values (from county assessor)
+    assessed_total: Mapped[int | None] = mapped_column(Integer)
+    assessed_land: Mapped[int | None] = mapped_column(Integer)
+    assessed_improvements: Mapped[int | None] = mapped_column(Integer)
+    assessed_year: Mapped[int | None] = mapped_column(Integer)
+    assessment_date: Mapped[date | None] = mapped_column(Date)
+    
+    # Market values (computed AVM)
+    estimated_value: Mapped[int | None] = mapped_column(Integer, index=True)
+    estimated_value_low: Mapped[int | None] = mapped_column(Integer)
+    estimated_value_high: Mapped[int | None] = mapped_column(Integer)
+    estimate_confidence: Mapped[float | None] = mapped_column(Float)  # 0-1
+    estimate_date: Mapped[date | None] = mapped_column(Date)
+    estimate_model: Mapped[str | None] = mapped_column(String(50))  # Model version
+    
+    # Per-unit metrics
+    price_per_sqft: Mapped[float | None] = mapped_column(Float)
+    price_per_acre: Mapped[float | None] = mapped_column(Float)
+    
+    # Historical
+    value_change_1yr: Mapped[float | None] = mapped_column(Float)  # % change
+    value_change_5yr: Mapped[float | None] = mapped_column(Float)
+    
+    property = relationship("Property", back_populates="valuation")
+```
+
+### S6: Ownership Model
+Create `api/app/models/ownership.py` for owner information.
+
+```python
+# api/app/models/ownership.py
+from datetime import date
+from sqlalchemy import String, Integer, Float, Date, Boolean, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Ownership(Base, TimestampMixin):
+    __tablename__ = "ownerships"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # Current owner
+    owner_name: Mapped[str | None] = mapped_column(String(200), index=True)
+    owner_name_2: Mapped[str | None] = mapped_column(String(200))  # Co-owner
+    owner_type: Mapped[str | None] = mapped_column(String(50))  # individual, corporation, trust, llc, government
+    
+    # Entity resolution
+    owner_entity_id: Mapped[str | None] = mapped_column(String(50), index=True)  # Resolved entity ID
+    
+    # Mailing address (may differ from property)
+    mailing_street: Mapped[str | None] = mapped_column(String(200))
+    mailing_city: Mapped[str | None] = mapped_column(String(100))
+    mailing_state: Mapped[str | None] = mapped_column(String(2))
+    mailing_zip: Mapped[str | None] = mapped_column(String(10))
+    
+    # Occupancy
+    owner_occupied: Mapped[bool | None] = mapped_column(Boolean)
+    
+    # Acquisition
+    acquisition_date: Mapped[date | None] = mapped_column(Date, index=True)
+    acquisition_price: Mapped[int | None] = mapped_column(Integer)
+    acquisition_type: Mapped[str | None] = mapped_column(String(50))  # sale, inheritance, gift, foreclosure
+    
+    # Duration
+    ownership_length_years: Mapped[float | None] = mapped_column(Float)
+    
+    property = relationship("Property", back_populates="ownership")
+```
+
+### S7: Zoning Model
+Create `api/app/models/zoning.py` for zoning restrictions.
+
+```python
+# api/app/models/zoning.py
+from sqlalchemy import String, Float, Boolean, ForeignKey, ARRAY
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
+from app.models.base import Base, TimestampMixin
+
+class Zoning(Base, TimestampMixin):
+    __tablename__ = "zonings"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # Zone classification
+    zone_code: Mapped[str | None] = mapped_column(String(20), index=True)
+    zone_description: Mapped[str | None] = mapped_column(String(200))
+    zone_category: Mapped[str | None] = mapped_column(String(50))  # residential, commercial, industrial, mixed
+    
+    # Overlay districts
+    overlay_districts: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    historic_district: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    # Permitted uses
+    permitted_uses: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    conditional_uses: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    prohibited_uses: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    
+    # Dimensional requirements
+    setback_front_ft: Mapped[float | None] = mapped_column(Float)
+    setback_rear_ft: Mapped[float | None] = mapped_column(Float)
+    setback_side_ft: Mapped[float | None] = mapped_column(Float)
+    max_height_ft: Mapped[float | None] = mapped_column(Float)
+    max_stories: Mapped[int | None] = mapped_column()
+    max_far: Mapped[float | None] = mapped_column(Float)  # Floor Area Ratio
+    max_lot_coverage: Mapped[float | None] = mapped_column(Float)  # % impervious
+    min_lot_size_sqft: Mapped[int | None] = mapped_column()
+    min_lot_width_ft: Mapped[float | None] = mapped_column(Float)
+    
+    # Density
+    max_units_per_acre: Mapped[float | None] = mapped_column(Float)
+    
+    # Parking requirements
+    parking_spaces_required: Mapped[int | None] = mapped_column()
+    
+    # ADU rules
+    adu_permitted: Mapped[bool | None] = mapped_column(Boolean)
+    adu_rules: Mapped[dict] = mapped_column(JSONB, default={})
+    
+    # Source
+    jurisdiction: Mapped[str | None] = mapped_column(String(100))
+    ordinance_reference: Mapped[str | None] = mapped_column(String(200))
+    
+    property = relationship("Property", back_populates="zoning")
+```
+
+### S8: Listing Model
+Create `api/app/models/listing.py` for MLS listings.
+
+```python
+# api/app/models/listing.py
+from datetime import date, datetime
+from sqlalchemy import String, Integer, Float, Date, DateTime, Boolean, ForeignKey, Text
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Listing(Base, TimestampMixin):
+    __tablename__ = "listings"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), index=True)
+    mls_number: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    mls_source: Mapped[str | None] = mapped_column(String(50))  # Which MLS system
+    
+    # Status
+    status: Mapped[str] = mapped_column(String(20), index=True)  # active, pending, sold, expired, withdrawn
+    
+    # Dates
+    list_date: Mapped[date | None] = mapped_column(Date, index=True)
+    pending_date: Mapped[date | None] = mapped_column(Date)
+    sold_date: Mapped[date | None] = mapped_column(Date, index=True)
+    expiration_date: Mapped[date | None] = mapped_column(Date)
+    days_on_market: Mapped[int | None] = mapped_column(Integer)
+    cumulative_dom: Mapped[int | None] = mapped_column(Integer)
+    
+    # Pricing
+    list_price: Mapped[int | None] = mapped_column(Integer, index=True)
+    original_list_price: Mapped[int | None] = mapped_column(Integer)
+    sold_price: Mapped[int | None] = mapped_column(Integer)
+    price_per_sqft: Mapped[float | None] = mapped_column(Float)
+    
+    # Description
+    public_remarks: Mapped[str | None] = mapped_column(Text)
+    private_remarks: Mapped[str | None] = mapped_column(Text)
+    
+    # Features
+    features: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    appliances: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    
+    # Photos
+    photo_count: Mapped[int] = mapped_column(Integer, default=0)
+    photo_urls: Mapped[list] = mapped_column(ARRAY(String), default=[])
+    virtual_tour_url: Mapped[str | None] = mapped_column(String(500))
+    
+    # Showing
+    showing_instructions: Mapped[str | None] = mapped_column(Text)
+    lockbox_type: Mapped[str | None] = mapped_column(String(50))
+    
+    # Agent
+    listing_agent_name: Mapped[str | None] = mapped_column(String(100))
+    listing_agent_phone: Mapped[str | None] = mapped_column(String(20))
+    listing_agent_email: Mapped[str | None] = mapped_column(String(100))
+    listing_agent_license: Mapped[str | None] = mapped_column(String(50))
+    listing_office_name: Mapped[str | None] = mapped_column(String(100))
+    listing_office_phone: Mapped[str | None] = mapped_column(String(20))
+    
+    # Buyer agent (if sold)
+    buyer_agent_name: Mapped[str | None] = mapped_column(String(100))
+    buyer_office_name: Mapped[str | None] = mapped_column(String(100))
+    
+    property = relationship("Property", back_populates="listing")
+```
+
+### S9: Transaction Model
+Create `api/app/models/transaction.py` for deed transfers and sales.
+
+```python
+# api/app/models/transaction.py
+from datetime import date
+from sqlalchemy import String, Integer, Float, Date, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin, ProvenanceMixin
+
+class Transaction(Base, TimestampMixin, ProvenanceMixin):
+    __tablename__ = "transactions"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), index=True)
+    
+    # Recording
+    document_number: Mapped[str | None] = mapped_column(String(50), index=True)
+    recording_date: Mapped[date | None] = mapped_column(Date, index=True)
+    book: Mapped[str | None] = mapped_column(String(20))
+    page: Mapped[str | None] = mapped_column(String(20))
+    
+    # Transaction details
+    transaction_date: Mapped[date | None] = mapped_column(Date)
+    deed_type: Mapped[str | None] = mapped_column(String(50))  # warranty, quitclaim, grant, trustee
+    transaction_type: Mapped[str | None] = mapped_column(String(50))  # sale, refinance, transfer
+    
+    # Parties
+    grantor: Mapped[str | None] = mapped_column(String(200))
+    grantee: Mapped[str | None] = mapped_column(String(200))
+    
+    # Financial
+    sale_price: Mapped[int | None] = mapped_column(Integer)
+    price_per_sqft: Mapped[float | None] = mapped_column(Float)
+    loan_amount: Mapped[int | None] = mapped_column(Integer)
+    lender_name: Mapped[str | None] = mapped_column(String(200))
+    
+    # Flags
+    arms_length: Mapped[bool | None] = mapped_column()  # True if fair market sale
+    distressed: Mapped[bool | None] = mapped_column()  # Foreclosure, short sale
+    
+    property = relationship("Property", back_populates="transactions")
+```
+
+### S10: Permit Model
+Create `api/app/models/permit.py` for building permits.
+
+```python
+# api/app/models/permit.py
+from datetime import date
+from sqlalchemy import String, Integer, Float, Date, ForeignKey, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin, ProvenanceMixin
+
+class Permit(Base, TimestampMixin, ProvenanceMixin):
+    __tablename__ = "permits"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), index=True)
+    
+    # Permit info
+    permit_number: Mapped[str] = mapped_column(String(50), index=True)
+    permit_type: Mapped[str | None] = mapped_column(String(50), index=True)  # building, electrical, plumbing, mechanical
+    permit_subtype: Mapped[str | None] = mapped_column(String(100))
+    
+    # Status
+    status: Mapped[str | None] = mapped_column(String(50), index=True)  # issued, in_review, approved, inspection, finaled, expired
+    
+    # Dates
+    application_date: Mapped[date | None] = mapped_column(Date)
+    issue_date: Mapped[date | None] = mapped_column(Date, index=True)
+    expiration_date: Mapped[date | None] = mapped_column(Date)
+    final_date: Mapped[date | None] = mapped_column(Date)
+    
+    # Description
+    description: Mapped[str | None] = mapped_column(Text)
+    work_class: Mapped[str | None] = mapped_column(String(50))  # new, addition, alteration, repair, demolition
+    
+    # Financial
+    valuation: Mapped[int | None] = mapped_column(Integer)
+    fee_paid: Mapped[float | None] = mapped_column(Float)
+    
+    # Contractor
+    contractor_name: Mapped[str | None] = mapped_column(String(200))
+    contractor_license: Mapped[str | None] = mapped_column(String(50))
+    contractor_phone: Mapped[str | None] = mapped_column(String(20))
+    
+    # Inspection
+    last_inspection_date: Mapped[date | None] = mapped_column(Date)
+    last_inspection_result: Mapped[str | None] = mapped_column(String(50))
+    inspections_passed: Mapped[int] = mapped_column(Integer, default=0)
+    inspections_failed: Mapped[int] = mapped_column(Integer, default=0)
+    
+    # Jurisdiction
+    jurisdiction: Mapped[str | None] = mapped_column(String(100))
+    
+    property = relationship("Property", back_populates="permits")
+```
+
+### S11: Environmental Model
+Create `api/app/models/environmental.py` for hazards and risk.
+
+```python
+# api/app/models/environmental.py
+from sqlalchemy import String, Float, Boolean, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Environmental(Base, TimestampMixin):
+    __tablename__ = "environmentals"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # Flood
+    flood_zone: Mapped[str | None] = mapped_column(String(10))  # A, AE, X, V, VE
+    flood_zone_description: Mapped[str | None] = mapped_column(String(200))
+    in_100yr_floodplain: Mapped[bool | None] = mapped_column(Boolean)
+    in_500yr_floodplain: Mapped[bool | None] = mapped_column(Boolean)
+    flood_insurance_required: Mapped[bool | None] = mapped_column(Boolean)
+    flood_map_date: Mapped[str | None] = mapped_column(String(20))
+    flood_panel_number: Mapped[str | None] = mapped_column(String(20))
+    base_flood_elevation: Mapped[float | None] = mapped_column(Float)
+    
+    # Wildfire
+    wildfire_risk: Mapped[str | None] = mapped_column(String(20))  # very_low, low, moderate, high, very_high
+    wildfire_score: Mapped[float | None] = mapped_column(Float)  # 0-100
+    in_wui: Mapped[bool | None] = mapped_column(Boolean)  # Wildland-Urban Interface
+    
+    # Earthquake
+    earthquake_risk: Mapped[str | None] = mapped_column(String(20))
+    earthquake_score: Mapped[float | None] = mapped_column(Float)
+    near_fault_line: Mapped[bool | None] = mapped_column(Boolean)
+    fault_distance_miles: Mapped[float | None] = mapped_column(Float)
+    liquefaction_risk: Mapped[bool | None] = mapped_column(Boolean)
+    
+    # Environmental contamination
+    superfund_site: Mapped[bool | None] = mapped_column(Boolean)
+    superfund_distance_miles: Mapped[float | None] = mapped_column(Float)
+    brownfield_site: Mapped[bool | None] = mapped_column(Boolean)
+    underground_storage_tanks: Mapped[bool | None] = mapped_column(Boolean)
+    
+    # Other hazards
+    radon_zone: Mapped[str | None] = mapped_column(String(10))
+    tornado_risk: Mapped[str | None] = mapped_column(String(20))
+    hurricane_risk: Mapped[str | None] = mapped_column(String(20))
+    hail_risk: Mapped[str | None] = mapped_column(String(20))
+    
+    # Composite score
+    overall_risk_score: Mapped[float | None] = mapped_column(Float)  # 0-100
+    
+    property = relationship("Property", back_populates="environmental")
+```
+
+### S12: School Model
+Create `api/app/models/school.py` for school assignments.
+
+```python
+# api/app/models/school.py
+from sqlalchemy import String, Integer, Float, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class School(Base, TimestampMixin):
+    __tablename__ = "schools"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # District
+    district_name: Mapped[str | None] = mapped_column(String(100))
+    district_id: Mapped[str | None] = mapped_column(String(20))
+    district_rating: Mapped[int | None] = mapped_column(Integer)  # 1-10
+    
+    # Elementary
+    elementary_name: Mapped[str | None] = mapped_column(String(100))
+    elementary_id: Mapped[str | None] = mapped_column(String(20))
+    elementary_rating: Mapped[int | None] = mapped_column(Integer)
+    elementary_distance_miles: Mapped[float | None] = mapped_column(Float)
+    
+    # Middle
+    middle_name: Mapped[str | None] = mapped_column(String(100))
+    middle_id: Mapped[str | None] = mapped_column(String(20))
+    middle_rating: Mapped[int | None] = mapped_column(Integer)
+    middle_distance_miles: Mapped[float | None] = mapped_column(Float)
+    
+    # High
+    high_name: Mapped[str | None] = mapped_column(String(100))
+    high_id: Mapped[str | None] = mapped_column(String(20))
+    high_rating: Mapped[int | None] = mapped_column(Integer)
+    high_distance_miles: Mapped[float | None] = mapped_column(Float)
+    
+    property = relationship("Property", back_populates="school")
+```
+
+### S13: Tax and HOA Models
+Create `api/app/models/tax.py` and `api/app/models/hoa.py`.
+
+```python
+# api/app/models/tax.py
+from datetime import date
+from sqlalchemy import String, Integer, Float, Date, Boolean, ForeignKey
+from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+class Tax(Base, TimestampMixin):
+    __tablename__ = "taxes"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # Annual tax
+    annual_amount: Mapped[float | None] = mapped_column(Float)
+    tax_year: Mapped[int | None] = mapped_column(Integer)
+    tax_rate: Mapped[float | None] = mapped_column(Float)  # millage rate
+    
+    # Exemptions
+    exemptions: Mapped[list] = mapped_column(ARRAY(String), default=[])  # homestead, senior, veteran, disability
+    exemption_amount: Mapped[float | None] = mapped_column(Float)
+    
+    # Payment
+    last_paid_date: Mapped[date | None] = mapped_column(Date)
+    last_paid_amount: Mapped[float | None] = mapped_column(Float)
+    delinquent: Mapped[bool] = mapped_column(Boolean, default=False)
+    delinquent_amount: Mapped[float | None] = mapped_column(Float)
+    
+    # Tax sale
+    tax_lien: Mapped[bool] = mapped_column(Boolean, default=False)
+    tax_sale_scheduled: Mapped[bool] = mapped_column(Boolean, default=False)
+    
+    property = relationship("Property", back_populates="tax")
+
+
+# api/app/models/hoa.py
+class HOA(Base, TimestampMixin):
+    __tablename__ = "hoas"
+    __table_args__ = {"schema": "parcel"}
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    property_id: Mapped[str] = mapped_column(String(50), ForeignKey("parcel.properties.id"), unique=True)
+    
+    # HOA info
+    hoa_name: Mapped[str | None] = mapped_column(String(200))
+    hoa_exists: Mapped[bool | None] = mapped_column(Boolean)
+    
+    # Fees
+    fee_monthly: Mapped[float | None] = mapped_column(Float)
+    fee_annual: Mapped[float | None] = mapped_column(Float)
+    fee_includes: Mapped[list] = mapped_column(ARRAY(String), default=[])  # landscaping, pool, insurance
+    
+    # Special assessments
+    special_assessment: Mapped[bool] = mapped_column(Boolean, default=False)
+    special_assessment_amount: Mapped[float | None] = mapped_column(Float)
+    
+    # Rules
+    rental_allowed: Mapped[bool | None] = mapped_column(Boolean)
+    rental_restrictions: Mapped[str | None] = mapped_column(String(500))
+    pet_policy: Mapped[str | None] = mapped_column(String(200))
+    
+    # Contact
+    contact_name: Mapped[str | None] = mapped_column(String(100))
+    contact_phone: Mapped[str | None] = mapped_column(String(20))
+    contact_email: Mapped[str | None] = mapped_column(String(100))
+    management_company: Mapped[str | None] = mapped_column(String(200))
+    
+    property = relationship("Property", back_populates="hoa")
+```
+
+### S14: Models Package Export
+Create `api/app/models/__init__.py` to export all models.
+
+```python
+# api/app/models/__init__.py
+from .base import Base, TimestampMixin, DataQualityMixin, ProvenanceMixin
+from .property import Property
+from .address import Address
+from .building import Building
+from .valuation import Valuation
+from .ownership import Ownership
+from .zoning import Zoning
+from .listing import Listing
+from .transaction import Transaction
+from .permit import Permit
+from .environmental import Environmental
+from .school import School
+from .tax import Tax
+from .hoa import HOA
 
 __all__ = [
-    "ErrorHandlerMiddleware",
-    "AuthenticationMiddleware", 
-    "RateLimitMiddleware",
+    "Base",
+    "TimestampMixin",
+    "DataQualityMixin",
+    "ProvenanceMixin",
+    "Property",
+    "Address",
+    "Building",
+    "Valuation",
+    "Ownership",
+    "Zoning",
+    "Listing",
+    "Transaction",
+    "Permit",
+    "Environmental",
+    "School",
+    "Tax",
+    "HOA",
 ]
 ```
 
-### S14: Routes Package Setup
-Create `api/app/routes/__init__.py` and router mounting.
-
-```python
-# api/app/routes/__init__.py
-from .health import router as health_router
-
-# Placeholder routers (will be created in later stages)
-from fastapi import APIRouter
-
-properties_router = APIRouter(prefix="/v1/properties", tags=["Properties"])
-analytics_router = APIRouter(prefix="/v1/analytics", tags=["Analytics"])
-auth_router = APIRouter(prefix="/v1/auth", tags=["Authentication"])
-
-# Placeholder endpoints
-@properties_router.get("/{property_id}")
-async def get_property_placeholder(property_id: str):
-    return {"message": "Not implemented yet", "property_id": property_id}
-```
-
-### S15: Docker Build Verification
-Ensure Docker builds successfully.
+### S15: Alembic Migration
+Create the initial Alembic migration for all models.
 
 ```bash
-cd /home/numen/dharma/parceldata
-docker-compose build api
-docker-compose up -d postgres redis
-docker-compose up api
+cd /home/numen/dharma/parceldata/api
+alembic revision --autogenerate -m "Initial schema with all property models"
+alembic upgrade head
 ```
 
-- Dockerfile builds without errors
-- Application starts and connects to database/Redis
-- Health endpoint returns healthy
+Verify all tables created with proper indexes and constraints.
 
 ---
 
 ## Acceptance Criteria
-- FastAPI app starts on port 8000
-- `GET /health` returns `{"status": "healthy", ...}`
-- `GET /version` returns version info
-- Unauthenticated requests to `/v1/*` return 401
-- Rate limiting enforces per-second and per-day limits
-- Rate limit headers present in responses
-- Error responses follow standard format
-- Docker builds and runs successfully
+- All 14 SQLAlchemy models defined and validated
+- PostGIS geometry columns work (`location`, `boundary`)
+- pgvector column works (`embedding`)
+- All relationships defined correctly
+- Alembic migration runs without errors
+- Tables created in `parcel` schema
+- Proper indexes on query columns (property_id, state_fips, city, zip, etc.)
 - All new code passes `ruff check` and `mypy --strict`
