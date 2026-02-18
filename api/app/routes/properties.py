@@ -8,7 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
-from app.schemas.property import PropertyMicroResponse, PropertyResponse
+from app.schemas.property import (
+    DataQualitySchema,
+    PropertyMicroResponse,
+    PropertyResponse,
+)
 from app.schemas.search import (
     BatchLookupRequest,
     BatchLookupResponse,
@@ -21,6 +25,37 @@ from app.services.search_service import SearchFilters, SearchService
 router = APIRouter(prefix="/v1/properties", tags=["Properties"])
 
 DetailLevel = Literal["micro", "standard", "extended", "full"]
+
+
+def _aggregate_quality(
+    items: list[PropertyResponse],
+) -> DataQualitySchema:
+    """Compute aggregate data quality from a list of property responses."""
+    if not items:
+        return DataQualitySchema(
+            score=0,
+            freshness_hours=0,
+            sources=[],
+            confidence="none",
+        )
+    scores = [r.data_quality.score for r in items]
+    avg = sum(scores) / len(scores)
+    sources: list[str] = []
+    for r in items:
+        for s in r.data_quality.sources:
+            if s not in sources:
+                sources.append(s)
+    max_fresh = max(r.data_quality.freshness_hours for r in items)
+    return DataQualitySchema(
+        score=round(avg, 4),
+        freshness_hours=max_fresh,
+        sources=sources,
+        confidence=(
+            "high" if avg >= 0.85
+            else "medium" if avg >= 0.7
+            else "low"
+        ),
+    )
 
 
 def _apply_field_selection(
@@ -93,6 +128,7 @@ async def search_properties(
         limit=request.limit,
         offset=request.offset,
         has_more=(request.offset + len(full_results)) < total,
+        data_quality=_aggregate_quality(full_results),
     )
 
 
@@ -129,11 +165,13 @@ async def batch_lookup(
             results.append(None)
             errors.append(f"{prop_id}: {e!s}")
 
+    found_results = [r for r in results if isinstance(r, PropertyResponse)]
     return BatchLookupResponse(
         results=results,
         found=found,
         not_found=not_found,
         errors=errors,
+        data_quality=_aggregate_quality(found_results),
     )
 
 

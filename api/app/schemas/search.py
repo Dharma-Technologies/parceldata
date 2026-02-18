@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.property import PropertyResponse
+from app.schemas.property import DataQualitySchema, PropertyResponse
 
 
 class SearchRequest(BaseModel):
@@ -46,6 +46,7 @@ class SearchResponse(BaseModel):
     limit: int
     offset: int
     has_more: bool
+    data_quality: DataQualitySchema
 
 
 class BatchLookupRequest(BaseModel):
@@ -64,3 +65,4 @@ class BatchLookupResponse(BaseModel):
     found: int
     not_found: int
     errors: list[str]
+    data_quality: DataQualitySchema

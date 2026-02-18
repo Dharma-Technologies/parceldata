@@ -80,5 +80,10 @@ def _auth_error(message: str) -> JSONResponse:
                 "code": "UNAUTHORIZED",
                 "message": message,
             },
+            "data_quality": {
+                "score": 0,
+                "confidence": "none",
+                "message": "No data available",
+            },
         },
     )

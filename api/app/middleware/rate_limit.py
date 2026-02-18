@@ -58,6 +58,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                                 f"for {tier} tier)"
                             ),
                         },
+                        "data_quality": {
+                            "score": 0,
+                            "confidence": "none",
+                            "message": "No data available",
+                        },
                     },
                 )
 
@@ -77,6 +82,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                                 f"Daily rate limit exceeded ({per_day}/day "
                                 f"for {tier} tier)"
                             ),
+                        },
+                        "data_quality": {
+                            "score": 0,
+                            "confidence": "none",
+                            "message": "No data available",
                         },
                     },
                 )

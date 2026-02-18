@@ -3,8 +3,11 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.graphql.schema import graphql_router
 from app.lifecycle import shutdown, startup
@@ -90,3 +93,37 @@ app.include_router(properties_router)
 app.include_router(analytics_router)
 app.include_router(auth_router)
 app.include_router(graphql_router, prefix="/graphql")
+
+_DATA_QUALITY_NONE = {
+    "score": 0,
+    "confidence": "none",
+    "message": "No data available",
+}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(
+    request: Request, exc: StarletteHTTPException,
+) -> JSONResponse:
+    """Include data_quality in all HTTP error responses."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "detail": exc.detail,
+            "data_quality": _DATA_QUALITY_NONE,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError,
+) -> JSONResponse:
+    """Include data_quality in validation error responses."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "data_quality": _DATA_QUALITY_NONE,
+        },
+    )

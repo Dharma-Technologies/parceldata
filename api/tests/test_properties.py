@@ -141,3 +141,69 @@ async def test_openapi_spec(client: AsyncClient) -> None:
     assert "/v1/properties/search" in data["paths"]
     assert "/v1/analytics/comparables" in data["paths"]
     assert "/v1/analytics/market-trends" in data["paths"]
+
+
+# --- S15: Data quality in every response ---
+
+
+@pytest.mark.asyncio
+async def test_data_quality_in_404_error(
+    client: AsyncClient,
+) -> None:
+    """404 error responses include data_quality object."""
+    response = await client.get(
+        "/v1/properties/NONEXISTENT-ID",
+        headers=AUTH_HEADERS,
+    )
+    if response.status_code == 404:
+        data = response.json()
+        assert "data_quality" in data
+        assert data["data_quality"]["score"] == 0
+        assert data["data_quality"]["confidence"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_data_quality_in_422_error(
+    client: AsyncClient,
+) -> None:
+    """422 validation error responses include data_quality object."""
+    response = await client.get(
+        "/v1/properties/address/lookup",
+        headers=AUTH_HEADERS,
+    )
+    assert response.status_code == 422
+    data = response.json()
+    assert "data_quality" in data
+    assert data["data_quality"]["score"] == 0
+    assert data["data_quality"]["confidence"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_data_quality_in_market_trends(
+    client: AsyncClient,
+) -> None:
+    """Market trends response includes full data_quality."""
+    response = await client.get(
+        "/v1/analytics/market-trends",
+        params={"zip": "78701", "period": "12m"},
+        headers=AUTH_HEADERS,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    dq = data["data_quality"]
+    assert "score" in dq
+    assert "confidence" in dq
+    assert dq["score"] > 0
+
+
+@pytest.mark.asyncio
+async def test_data_quality_in_401_error(
+    client: AsyncClient,
+) -> None:
+    """401 auth error responses include data_quality object."""
+    response = await client.get("/v1/properties/TX-TRAVIS-123")
+    assert response.status_code == 401
+    data = response.json()
+    assert "data_quality" in data
+    assert data["data_quality"]["score"] == 0
+    assert data["data_quality"]["confidence"] == "none"

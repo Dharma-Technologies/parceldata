@@ -52,5 +52,10 @@ def _error_response(
                 "message": message,
             },
             "request_id": request_id,
+            "data_quality": {
+                "score": 0,
+                "confidence": "none",
+                "message": "No data available",
+            },
         },
     )
