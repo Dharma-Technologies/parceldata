@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -138,7 +139,7 @@ class UsageService:
         account_id: int,
         start_date: date | None = None,
         end_date: date | None = None,
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Get usage summary for an account.
 
         Args:
