@@ -1,19 +1,17 @@
 {
-  "id": "P10-05",
-  "title": "Data Pipeline",
+  "id": "P10-06",
+  "title": "MCP Server",
   "branchName": "main",
   "stories": [
-    {"id": "S1", "title": "Provider Adapter Base Class", "passes": true},
-    {"id": "S2", "title": "Regrid Adapter", "passes": true},
-    {"id": "S3", "title": "ATTOM Adapter", "passes": true},
-    {"id": "S4", "title": "Census Adapter", "passes": true},
-    {"id": "S5", "title": "FEMA Adapter", "passes": true},
-    {"id": "S6", "title": "Address Normalization Service", "passes": true},
-    {"id": "S7", "title": "Geocoding Service", "passes": true},
-    {"id": "S8", "title": "Entity Resolution Pipeline", "passes": true},
-    {"id": "S9", "title": "Data Quality Scoring Service", "passes": true},
-    {"id": "S10", "title": "Data Ingestion Pipeline", "passes": true},
-    {"id": "S11", "title": "Batch Import CLI", "passes": true},
-    {"id": "S12", "title": "Provider Adapter Package", "passes": true}
+    {"id": "S1", "title": "MCP Server Entry Point", "passes": false},
+    {"id": "S2", "title": "Tool Definitions", "passes": false},
+    {"id": "S3", "title": "API Client", "passes": false},
+    {"id": "S4", "title": "Property Lookup Tool", "passes": false},
+    {"id": "S5", "title": "Property Search Tool", "passes": false},
+    {"id": "S6", "title": "Get Comparables Tool", "passes": false},
+    {"id": "S7", "title": "Get Market Trends Tool", "passes": false},
+    {"id": "S8", "title": "Check Zoning Tool", "passes": false},
+    {"id": "S9", "title": "Get Permits Tool", "passes": false},
+    {"id": "S10", "title": "Remaining Tools (Owner Portfolio, Estimate Value, Development Feasibility)", "passes": false}
   ]
 }
