@@ -1,0 +1,26 @@
+# ParcelData.ai - Robots.txt
+# Allow all crawlers including AI agents
+
+User-agent: *
+Allow: /
+
+# AI Crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+Sitemap: https://parceldata.ai/sitemap.xml

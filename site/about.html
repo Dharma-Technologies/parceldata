@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — ParcelData.ai | Dharma Technologies</title>
+<meta name="description" content="ParcelData is built by Dharma Technologies — an AI-first company building open source data infrastructure for the agent economy.">
+<meta property="og:title" content="About ParcelData — Dharma Technologies">
+<meta property="og:description" content="AI-first company building open source real estate data infrastructure.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,300;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Newsreader', 'Georgia', 'serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
+      colors: {
+        surface: { DEFAULT: '#141414', border: '#1a1a1a', hover: '#1e1e1e' },
+        emerald: { DEFAULT: '#10B981', light: '#34D399', dark: '#059669' },
+        blue: { DEFAULT: '#3b82f6', light: '#60a5fa' },
+      },
+    }
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "Dharma Technologies",
+  "description": "AI-first company building open source data infrastructure",
+  "url": "https://dharma.tech",
+  "foundingDate": "2025",
+  "product": {
+    "@type": "SoftwareApplication",
+    "name": "ParcelData",
+    "url": "https://parceldata.ai"
+  }
+}
+</script>
+<style>
+  body { background-color: #0a0a0a; color: #f5f5f5; -webkit-font-smoothing: antialiased; }
+  .text-glow-subtle { text-shadow: 0 0 20px rgba(16,185,129,0.15); }
+  .grid-bg {
+    background-size: 60px 60px;
+    background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 70%);
+  }
+  .spotlight-card {
+    position: relative; background: #141414; border: 1px solid #1a1a1a; border-radius: 16px; overflow: hidden;
+    transition: border-color 0.3s, box-shadow 0.3s;
+  }
+  .spotlight-card:hover { border-color: rgba(16,185,129,0.3); box-shadow: 0 0 30px rgba(16,185,129,0.08); }
+  .reveal { opacity: 0; transform: translateY(30px); transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+  .mobile-menu { transform: translateY(-20px); opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .mobile-menu.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #0a0a0a; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+</style>
+</head>
+<body class="min-h-screen overflow-x-hidden font-sans">
+
+<div class="fixed inset-0 grid-bg pointer-events-none z-0"></div>
+
+<!-- Navigation -->
+<nav class="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-surface-border">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16">
+      <a href="index.html" class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald/10 border border-emerald/20 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="#10B981"/><rect x="9" y="2" width="5" height="5" rx="1" fill="#10B981" opacity="0.6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="#10B981" opacity="0.6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="#10B981" opacity="0.3"/></svg>
+        </div>
+        <span class="text-lg font-semibold tracking-tight">ParcelData<span class="text-emerald">.ai</span></span>
+      </a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="index.html#features" class="text-sm text-zinc-400 hover:text-white transition-colors">Features</a>
+        <a href="pricing.html" class="text-sm text-zinc-400 hover:text-white transition-colors">Pricing</a>
+        <a href="docs.html" class="text-sm text-zinc-400 hover:text-white transition-colors">Docs</a>
+        <a href="https://github.com/Dharma-Technologies/parceldata" target="_blank" class="text-sm text-zinc-400 hover:text-white transition-colors flex items-center gap-1.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+        <a href="docs.html#api-reference" class="text-sm text-zinc-400 hover:text-white transition-colors">API Reference</a>
+      </div>
+      <div class="hidden md:flex items-center gap-3">
+        <a href="login.html" class="text-sm text-zinc-400 hover:text-white transition-colors px-3 py-1.5">Sign In</a>
+        <a href="login.html#signup" class="text-sm font-medium text-white bg-emerald hover:bg-emerald-dark px-5 py-2 rounded-full transition-colors">Get API Key</a>
+      </div>
+      <button id="mobile-toggle" class="md:hidden p-2 text-zinc-400 hover:text-white" aria-label="Toggle menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="mobile-menu" class="mobile-menu md:hidden absolute top-full left-0 right-0 bg-surface/95 backdrop-blur-xl border-b border-surface-border">
+    <div class="px-4 py-4 space-y-3">
+      <a href="index.html#features" class="block text-sm text-zinc-400 hover:text-white py-2">Features</a>
+      <a href="pricing.html" class="block text-sm text-zinc-400 hover:text-white py-2">Pricing</a>
+      <a href="docs.html" class="block text-sm text-zinc-400 hover:text-white py-2">Docs</a>
+      <a href="https://github.com/Dharma-Technologies/parceldata" class="block text-sm text-zinc-400 hover:text-white py-2">GitHub</a>
+      <hr class="border-surface-border">
+      <a href="login.html" class="block text-sm text-zinc-400 hover:text-white py-2">Sign In</a>
+      <a href="login.html#signup" class="block text-sm font-medium text-emerald py-2">Get API Key →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="pt-32 pb-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="reveal">
+      <div class="flex items-center gap-2 mb-6">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald"></span>
+        </span>
+        <span class="text-xs font-mono tracking-widest text-zinc-500 uppercase">About Us</span>
+      </div>
+      <h1 class="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-tight mb-6">
+        Building data infrastructure for the <span class="text-emerald text-glow-subtle">agent economy</span>
+      </h1>
+      <p class="text-xl text-zinc-400 leading-relaxed max-w-3xl">
+        ParcelData is built by Dharma Technologies — a small, AI-first team creating open source tools that make real-world data accessible to AI agents.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- Mission -->
+<section class="py-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid md:grid-cols-2 gap-12 items-start">
+      <div class="reveal">
+        <h2 class="text-2xl font-bold mb-4">Our Mission</h2>
+        <p class="text-zinc-400 leading-relaxed mb-4">
+          Real estate data is fragmented across thousands of county records offices, MLS systems, and private databases. This fragmentation makes it nearly impossible for AI agents to work with property data reliably.
+        </p>
+        <p class="text-zinc-400 leading-relaxed mb-4">
+          We're building the unified data layer that solves this — aggregating, normalizing, and quality-scoring property data from 20+ sources into a single API that any agent can use.
+        </p>
+        <p class="text-zinc-400 leading-relaxed">
+          Our goal: make it as easy to query any US property as it is to look up a stock ticker.
+        </p>
+      </div>
+      <div class="reveal" style="transition-delay: 0.2s">
+        <h2 class="text-2xl font-bold mb-4">Our Philosophy</h2>
+        <div class="space-y-4">
+          <div class="bg-surface border border-surface-border rounded-xl p-5">
+            <h3 class="font-semibold text-emerald mb-2">AI-First</h3>
+            <p class="text-sm text-zinc-400">Every design decision optimizes for agent consumption — token-efficient responses, quality scores, MCP-native tools. Humans are welcome, but agents come first.</p>
+          </div>
+          <div class="bg-surface border border-surface-border rounded-xl p-5">
+            <h3 class="font-semibold text-emerald mb-2">Small Team, Big Leverage</h3>
+            <p class="text-sm text-zinc-400">We operate with minimal headcount and maximum automation. AI handles most operations, engineering, and support. Humans set strategy and make judgment calls.</p>
+          </div>
+          <div class="bg-surface border border-surface-border rounded-xl p-5">
+            <h3 class="font-semibold text-emerald mb-2">Open Source First</h3>
+            <p class="text-sm text-zinc-400">The entire platform — API server, MCP server, SDKs, adapters — is MIT licensed. We monetize data and infrastructure, not code.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Values / Principles -->
+<section class="py-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h2 class="text-2xl font-bold mb-8 reveal">What we believe</h2>
+    <div class="grid sm:grid-cols-2 gap-6">
+      <div class="spotlight-card p-6 reveal">
+        <div class="text-2xl mb-3">🔓</div>
+        <h3 class="font-semibold mb-2">Data should be accessible</h3>
+        <p class="text-sm text-zinc-400">Property data is public record, yet it's locked behind expensive gatekeepers. We're changing that with open source tools and a generous free tier.</p>
+      </div>
+      <div class="spotlight-card p-6 reveal" style="transition-delay:0.1s">
+        <div class="text-2xl mb-3">📊</div>
+        <h3 class="font-semibold mb-2">Quality is measurable</h3>
+        <p class="text-sm text-zinc-400">Every response includes a quality score. Agents need to know how much to trust data — we make that explicit, not implicit.</p>
+      </div>
+      <div class="spotlight-card p-6 reveal" style="transition-delay:0.2s">
+        <div class="text-2xl mb-3">🤖</div>
+        <h3 class="font-semibold mb-2">Agents are the new developers</h3>
+        <p class="text-sm text-zinc-400">APIs built for human developers need adaptation for agents. We build agent-native from day one — MCP tools, token optimization, structured confidence levels.</p>
+      </div>
+      <div class="spotlight-card p-6 reveal" style="transition-delay:0.3s">
+        <div class="text-2xl mb-3">⚡</div>
+        <h3 class="font-semibold mb-2">Speed enables intelligence</h3>
+        <p class="text-sm text-zinc-400">When an API response takes 5 seconds, agents can't reason in real-time. Our &lt;100ms P95 latency enables truly interactive agent workflows.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Dharma Technologies -->
+<section class="py-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-surface border border-surface-border rounded-2xl p-8 sm:p-12 reveal">
+      <div class="flex items-center gap-3 mb-6">
+        <div class="w-10 h-10 rounded-xl bg-emerald/10 border border-emerald/20 flex items-center justify-center">
+          <span class="text-emerald font-bold text-lg">D</span>
+        </div>
+        <div>
+          <h2 class="text-xl font-bold">Dharma Technologies</h2>
+          <p class="text-sm text-zinc-500">The company behind ParcelData</p>
+        </div>
+      </div>
+      
+      <p class="text-zinc-400 leading-relaxed mb-6">
+        Dharma Technologies builds open source data infrastructure for AI. ParcelData is our flagship product, but our mission extends beyond real estate — we're building the data primitives that agents need to interact with the physical world.
+      </p>
+      
+      <div class="grid sm:grid-cols-3 gap-4">
+        <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-emerald mb-1">2025</div>
+          <div class="text-xs text-zinc-500">Founded</div>
+        </div>
+        <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-white mb-1">MIT</div>
+          <div class="text-xs text-zinc-500">Open Source License</div>
+        </div>
+        <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-xl p-4 text-center">
+          <div class="text-2xl font-bold text-white mb-1">AI-First</div>
+          <div class="text-xs text-zinc-500">Operating Model</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Data Partnerships -->
+<section class="py-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <h2 class="text-2xl font-bold mb-4 reveal">Data Provider Partnerships</h2>
+    <p class="text-zinc-400 mb-8 reveal" style="transition-delay:0.1s">We aggregate data from 20+ sources through licensed partnerships and public records access. Our entity resolution pipeline merges these into a single canonical record per property.</p>
+    
+    <div class="grid sm:grid-cols-3 gap-4 reveal" style="transition-delay:0.2s">
+      <div class="bg-surface border border-surface-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-emerald mb-2">County Records</h3>
+        <p class="text-xs text-zinc-500">3,000+ county assessor databases, tax records, and deed recordings across all 50 states.</p>
+      </div>
+      <div class="bg-surface border border-surface-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-emerald mb-2">MLS Systems</h3>
+        <p class="text-xs text-zinc-500">Licensed access to listing data from major MLS providers covering active, pending, and sold properties.</p>
+      </div>
+      <div class="bg-surface border border-surface-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-emerald mb-2">Permit Databases</h3>
+        <p class="text-xs text-zinc-500">Building permits, inspection records, and certificate of occupancy data from municipal systems.</p>
+      </div>
+      <div class="bg-surface border border-surface-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-emerald mb-2">Environmental Data</h3>
+        <p class="text-xs text-zinc-500">FEMA flood zones, EPA environmental records, wildfire risk assessments, and climate data.</p>
+      </div>
+      <div class="bg-surface border border-surface-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-emerald mb-2">School & Census</h3>
+        <p class="text-xs text-zinc-500">NCES school data, Census demographics, and community statistics for neighborhood context.</p>
+      </div>
+      <div class="bg-surface border border-surface-border rounded-xl p-5">
+        <h3 class="text-sm font-semibold text-emerald mb-2">Commercial Sources</h3>
+        <p class="text-xs text-zinc-500">CoStar, commercial listings, lease data, and business property records for CRE coverage.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Open Source Commitment -->
+<section class="py-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-surface border border-surface-border rounded-2xl p-8 sm:p-12 text-center reveal">
+      <h2 class="text-2xl font-bold mb-4">Open Source Commitment</h2>
+      <p class="text-zinc-400 max-w-2xl mx-auto mb-6">
+        We believe infrastructure should be inspectable, forkable, and community-governed. Every line of our API server, MCP server, SDKs, and data adapters is MIT licensed and available on GitHub.
+      </p>
+      <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <a href="https://github.com/Dharma-Technologies/parceldata" target="_blank" class="inline-flex items-center gap-2 text-sm font-medium text-zinc-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-6 py-3 transition-all">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          View on GitHub
+        </a>
+        <a href="docs.html" class="inline-flex items-center gap-2 text-sm font-medium text-emerald hover:text-emerald-light transition-colors px-6 py-3">
+          Read the Docs →
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section class="py-16 relative z-10">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal">
+    <h2 class="text-2xl font-bold mb-4">Get in touch</h2>
+    <p class="text-zinc-400 mb-6">Questions, partnerships, or just want to say hello?</p>
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="mailto:hello@parceldata.ai" class="text-sm text-zinc-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-6 py-3 transition-all">
+        hello@parceldata.ai
+      </a>
+      <a href="https://github.com/Dharma-Technologies/parceldata" target="_blank" class="text-sm text-zinc-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-6 py-3 transition-all flex items-center gap-2">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub Discussions
+      </a>
+      <a href="https://x.com/parceldata" target="_blank" class="text-sm text-zinc-300 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-6 py-3 transition-all">
+        @parceldata on X
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="border-t border-surface-border py-12 relative z-10">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div class="flex items-center gap-6">
+        <a href="index.html" class="text-sm text-zinc-500 hover:text-white transition-colors">Home</a>
+        <a href="docs.html" class="text-sm text-zinc-500 hover:text-white transition-colors">Docs</a>
+        <a href="pricing.html" class="text-sm text-zinc-500 hover:text-white transition-colors">Pricing</a>
+        <a href="https://github.com/Dharma-Technologies/parceldata" class="text-sm text-zinc-500 hover:text-white transition-colors">GitHub</a>
+      </div>
+      <p class="text-xs text-zinc-600">Built by <span class="text-zinc-500">Dharma Technologies</span> · Open source (MIT)</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+document.getElementById('mobile-toggle').addEventListener('click', () => {
+  document.getElementById('mobile-menu').classList.toggle('open');
+});
+
+const revealElements = document.querySelectorAll('.reveal');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+}, { threshold: 0.1 });
+revealElements.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

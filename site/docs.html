@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documentation — ParcelData.ai</title>
+<meta name="description" content="ParcelData documentation. Quickstart guide, API reference, SDK installation, MCP server setup, and code examples.">
+<meta property="og:title" content="ParcelData Docs — Developer Documentation">
+<meta property="og:description" content="Everything you need to integrate real estate data into your application or AI agent.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        serif: ['Newsreader', 'Georgia', 'serif'],
+        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+      },
+      colors: {
+        surface: { DEFAULT: '#141414', border: '#1a1a1a', hover: '#1e1e1e' },
+        emerald: { DEFAULT: '#10B981', light: '#34D399', dark: '#059669' },
+        blue: { DEFAULT: '#3b82f6', light: '#60a5fa' },
+      },
+    }
+  }
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "name": "ParcelData Documentation",
+  "description": "Developer documentation for the ParcelData real estate data API and MCP server",
+  "url": "https://parceldata.ai/docs",
+  "author": { "@type": "Organization", "name": "Dharma Technologies" }
+}
+</script>
+<style>
+  body { background-color: #0a0a0a; color: #f5f5f5; -webkit-font-smoothing: antialiased; }
+  .text-glow-subtle { text-shadow: 0 0 20px rgba(16,185,129,0.15); }
+  .code-keyword { color: #c084fc; }
+  .code-string { color: #34d399; }
+  .code-number { color: #fbbf24; }
+  .code-key { color: #60a5fa; }
+  .code-comment { color: #6b7280; }
+  .code-fn { color: #f472b6; }
+  .sidebar-link { display: block; padding: 6px 16px; font-size: 14px; color: #a1a1aa; border-left: 2px solid transparent; transition: all 0.2s; }
+  .sidebar-link:hover { color: #f5f5f5; background: rgba(255,255,255,0.03); }
+  .sidebar-link.active { color: #10B981; border-left-color: #10B981; background: rgba(16,185,129,0.05); }
+  .doc-section { scroll-margin-top: 100px; }
+  .mobile-menu { transform: translateY(-20px); opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+  .mobile-menu.open { transform: translateY(0); opacity: 1; pointer-events: auto; }
+  ::-webkit-scrollbar { width: 8px; }
+  ::-webkit-scrollbar-track { background: #0a0a0a; }
+  ::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
+</style>
+</head>
+<body class="min-h-screen overflow-x-hidden font-sans">
+
+<!-- Navigation -->
+<nav id="navbar" class="fixed top-0 left-0 right-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-surface-border">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16">
+      <a href="index.html" class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg bg-emerald/10 border border-emerald/20 flex items-center justify-center">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5" height="5" rx="1" fill="#10B981"/><rect x="9" y="2" width="5" height="5" rx="1" fill="#10B981" opacity="0.6"/><rect x="2" y="9" width="5" height="5" rx="1" fill="#10B981" opacity="0.6"/><rect x="9" y="9" width="5" height="5" rx="1" fill="#10B981" opacity="0.3"/></svg>
+        </div>
+        <span class="text-lg font-semibold tracking-tight">ParcelData<span class="text-emerald">.ai</span></span>
+      </a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="index.html#features" class="text-sm text-zinc-400 hover:text-white transition-colors">Features</a>
+        <a href="pricing.html" class="text-sm text-zinc-400 hover:text-white transition-colors">Pricing</a>
+        <a href="docs.html" class="text-sm text-emerald font-medium">Docs</a>
+        <a href="https://github.com/Dharma-Technologies/parceldata" target="_blank" class="text-sm text-zinc-400 hover:text-white transition-colors flex items-center gap-1.5">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <div class="hidden md:flex items-center gap-3">
+        <a href="login.html" class="text-sm text-zinc-400 hover:text-white transition-colors px-3 py-1.5">Sign In</a>
+        <a href="login.html#signup" class="text-sm font-medium text-white bg-emerald hover:bg-emerald-dark px-5 py-2 rounded-full transition-colors">Get API Key</a>
+      </div>
+      <button id="mobile-toggle" class="md:hidden p-2 text-zinc-400 hover:text-white" aria-label="Toggle menu">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="mobile-menu" class="mobile-menu md:hidden absolute top-full left-0 right-0 bg-surface/95 backdrop-blur-xl border-b border-surface-border">
+    <div class="px-4 py-4 space-y-3">
+      <a href="index.html#features" class="block text-sm text-zinc-400 hover:text-white py-2">Features</a>
+      <a href="pricing.html" class="block text-sm text-zinc-400 hover:text-white py-2">Pricing</a>
+      <a href="docs.html" class="block text-sm text-emerald py-2">Docs</a>
+      <a href="https://github.com/Dharma-Technologies/parceldata" class="block text-sm text-zinc-400 hover:text-white py-2">GitHub</a>
+      <hr class="border-surface-border">
+      <a href="login.html" class="block text-sm text-zinc-400 hover:text-white py-2">Sign In</a>
+      <a href="login.html#signup" class="block text-sm font-medium text-emerald py-2">Get API Key →</a>
+    </div>
+  </div>
+</nav>
+
+<div class="flex pt-16">
+  <!-- Sidebar -->
+  <aside class="hidden lg:block w-64 fixed top-16 bottom-0 overflow-y-auto border-r border-surface-border py-8">
+    <div class="space-y-6">
+      <div>
+        <h4 class="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Getting Started</h4>
+        <a href="#quickstart" class="sidebar-link active">Quickstart</a>
+        <a href="#installation" class="sidebar-link">Installation</a>
+        <a href="#authentication" class="sidebar-link">Authentication</a>
+      </div>
+      <div>
+        <h4 class="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">API Reference</h4>
+        <a href="#api-reference" class="sidebar-link">Overview</a>
+        <a href="#endpoints" class="sidebar-link">Endpoints</a>
+        <a href="#response-format" class="sidebar-link">Response Format</a>
+        <a href="#detail-tiers" class="sidebar-link">Detail Tiers</a>
+      </div>
+      <div>
+        <h4 class="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">SDKs</h4>
+        <a href="#sdks" class="sidebar-link">Overview</a>
+        <a href="#python-sdk" class="sidebar-link">Python</a>
+        <a href="#typescript-sdk" class="sidebar-link">TypeScript</a>
+      </div>
+      <div>
+        <h4 class="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">MCP Server</h4>
+        <a href="#mcp" class="sidebar-link">Setup</a>
+        <a href="#mcp-tools" class="sidebar-link">Available Tools</a>
+      </div>
+      <div>
+        <h4 class="px-4 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2">Guides</h4>
+        <a href="#examples" class="sidebar-link">Examples</a>
+        <a href="#data-quality" class="sidebar-link">Data Quality</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="lg:ml-64 flex-1 max-w-4xl px-4 sm:px-8 lg:px-12 py-12">
+    
+    <!-- Page Header -->
+    <div class="mb-12">
+      <h1 class="text-4xl sm:text-5xl font-bold tracking-tight mb-4">
+        <span class="text-emerald text-glow-subtle">Documentation</span>
+      </h1>
+      <p class="text-lg text-zinc-400">Everything you need to integrate ParcelData into your application or AI agent.</p>
+    </div>
+
+    <!-- Quickstart -->
+    <section id="quickstart" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-emerald/10 border border-emerald/20 flex items-center justify-center text-emerald text-sm font-mono">1</span>
+        Quickstart
+      </h2>
+      
+      <div class="space-y-6">
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-3">Get your API key</h3>
+          <p class="text-zinc-400 text-sm mb-4">Sign up for a free account and get your API key in seconds. No credit card required.</p>
+          <a href="login.html#signup" class="text-sm font-medium text-emerald hover:underline">Create account →</a>
+        </div>
+
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-3">Make your first request</h3>
+          <p class="text-zinc-400 text-sm mb-4">Look up any US property by address:</p>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code><span class="code-fn">curl</span> <span class="code-string">https://api.parceldata.ai/v1/properties/address</span> \
+  -H <span class="code-string">"Authorization: Bearer YOUR_API_KEY"</span> \
+  -H <span class="code-string">"Content-Type: application/json"</span> \
+  -d <span class="code-string">'{
+    "street": "123 Main St",
+    "city": "Austin",
+    "state": "TX"
+  }'</span></code></pre>
+          </div>
+        </div>
+
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-3">Explore the response</h3>
+          <p class="text-zinc-400 text-sm mb-4">Every response includes structured property data with a quality score:</p>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code>{
+  <span class="code-key">"parcel_id"</span>: <span class="code-string">"TX-TRAVIS-12345"</span>,
+  <span class="code-key">"address"</span>: <span class="code-string">"123 Main St, Austin, TX 78701"</span>,
+  <span class="code-key">"zoning"</span>: <span class="code-string">"R1-SF"</span>,
+  <span class="code-key">"lot_sqft"</span>: <span class="code-number">8500</span>,
+  <span class="code-key">"bedrooms"</span>: <span class="code-number">3</span>,
+  <span class="code-key">"bathrooms"</span>: <span class="code-number">2</span>,
+  <span class="code-key">"year_built"</span>: <span class="code-number">1962</span>,
+  <span class="code-key">"tax_assessed"</span>: <span class="code-number">425000</span>,
+  <span class="code-key">"permits_active"</span>: <span class="code-number">3</span>,
+  <span class="code-key">"data_quality"</span>: {
+    <span class="code-key">"score"</span>: <span class="code-number">0.92</span>,
+    <span class="code-key">"freshness_hours"</span>: <span class="code-number">4</span>,
+    <span class="code-key">"sources"</span>: [<span class="code-string">"travis_cad"</span>, <span class="code-string">"actris_mls"</span>],
+    <span class="code-key">"confidence"</span>: <span class="code-string">"high"</span>
+  }
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation -->
+    <section id="installation" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-emerald/10 border border-emerald/20 flex items-center justify-center text-emerald text-sm font-mono">2</span>
+        Installation
+      </h2>
+      
+      <div class="grid sm:grid-cols-2 gap-4">
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span class="text-emerald">Python</span>
+          </h3>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3 font-mono text-sm">
+            <span class="text-emerald">$</span> <span class="text-zinc-300">pip install parceldata</span>
+          </div>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span class="text-emerald">Node.js / TypeScript</span>
+          </h3>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3 font-mono text-sm">
+            <span class="text-emerald">$</span> <span class="text-zinc-300">npm install @parceldata/sdk</span>
+          </div>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span class="text-blue-light">MCP Server</span>
+          </h3>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3 font-mono text-sm">
+            <span class="text-emerald">$</span> <span class="text-zinc-300">npm install @parceldata/mcp</span>
+          </div>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span class="text-zinc-400">Self-Hosted</span>
+          </h3>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-3 font-mono text-sm">
+            <span class="text-emerald">$</span> <span class="text-zinc-300">docker-compose up</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Authentication -->
+    <section id="authentication" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span class="w-8 h-8 rounded-lg bg-emerald/10 border border-emerald/20 flex items-center justify-center text-emerald text-sm font-mono">3</span>
+        Authentication
+      </h2>
+      <div class="bg-surface border border-surface-border rounded-xl p-6">
+        <p class="text-zinc-400 text-sm mb-4">Authenticate requests with your API key via the <code class="text-emerald bg-emerald/10 px-1.5 py-0.5 rounded text-xs font-mono">Authorization</code> header or <code class="text-emerald bg-emerald/10 px-1.5 py-0.5 rounded text-xs font-mono">X-API-Key</code> header:</p>
+        <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm space-y-2 overflow-x-auto">
+          <div><span class="code-comment"># Bearer token (recommended)</span></div>
+          <div><span class="text-zinc-400">Authorization:</span> <span class="code-string">Bearer pk_live_your_key_here</span></div>
+          <div class="pt-2"><span class="code-comment"># Or X-API-Key header</span></div>
+          <div><span class="text-zinc-400">X-API-Key:</span> <span class="code-string">pk_live_your_key_here</span></div>
+        </div>
+        <div class="mt-4 p-3 bg-emerald/5 border border-emerald/20 rounded-lg">
+          <p class="text-xs text-emerald">💡 API keys prefixed with <code class="font-mono">pk_test_</code> access the sandbox. <code class="font-mono">pk_live_</code> keys access production data.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Reference -->
+    <section id="api-reference" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6">API Reference</h2>
+      <p class="text-zinc-400 mb-6">Base URL: <code class="text-emerald bg-emerald/10 px-2 py-1 rounded text-sm font-mono">https://api.parceldata.ai/v1</code></p>
+    </section>
+
+    <!-- Endpoints -->
+    <section id="endpoints" class="doc-section mb-16">
+      <h3 class="text-xl font-bold mb-6">Endpoints</h3>
+      <div class="space-y-4">
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-emerald bg-emerald/10 px-2 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/properties/{parcel_id}</code>
+          </div>
+          <p class="text-sm text-zinc-500">Lookup a property by its parcel ID.</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-emerald bg-emerald/10 px-2 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/properties/address</code>
+          </div>
+          <p class="text-sm text-zinc-500">Lookup a property by street address, city, and state.</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-emerald bg-emerald/10 px-2 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/properties/coordinates</code>
+          </div>
+          <p class="text-sm text-zinc-500">Lookup a property by latitude and longitude.</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-blue bg-blue/10 px-2 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/properties/search</code>
+          </div>
+          <p class="text-sm text-zinc-500">Search properties with filters (city, state, zoning, price range, etc.).</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-blue bg-blue/10 px-2 py-1 rounded">POST</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/properties/batch</code>
+          </div>
+          <p class="text-sm text-zinc-500">Batch lookup up to 100 properties in a single request.</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-emerald bg-emerald/10 px-2 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/analytics/comparables</code>
+          </div>
+          <p class="text-sm text-zinc-500">Get comparable sales for a property.</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-xl p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <span class="text-xs font-mono font-bold text-emerald bg-emerald/10 px-2 py-1 rounded">GET</span>
+            <code class="text-sm font-mono text-zinc-300">/v1/analytics/market-trends</code>
+          </div>
+          <p class="text-sm text-zinc-500">Get market statistics for a geographic area.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Response Format -->
+    <section id="response-format" class="doc-section mb-16">
+      <h3 class="text-xl font-bold mb-6">Response Format</h3>
+      <p class="text-zinc-400 text-sm mb-4">All responses are JSON and include a <code class="text-emerald bg-emerald/10 px-1.5 py-0.5 rounded text-xs font-mono">data_quality</code> object:</p>
+      <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code>{
+  <span class="code-key">"data"</span>: { <span class="code-comment">/* property data */</span> },
+  <span class="code-key">"data_quality"</span>: {
+    <span class="code-key">"score"</span>: <span class="code-number">0.92</span>,          <span class="code-comment">// 0-1 composite score</span>
+    <span class="code-key">"completeness"</span>: <span class="code-number">0.95</span>,    <span class="code-comment">// fields populated</span>
+    <span class="code-key">"accuracy"</span>: <span class="code-number">0.98</span>,        <span class="code-comment">// cross-source verified</span>
+    <span class="code-key">"timeliness"</span>: <span class="code-number">0.85</span>,      <span class="code-comment">// freshness factor</span>
+    <span class="code-key">"freshness_hours"</span>: <span class="code-number">4</span>,    <span class="code-comment">// hours since last update</span>
+    <span class="code-key">"sources"</span>: [<span class="code-string">"travis_cad"</span>, <span class="code-string">"actris_mls"</span>],
+    <span class="code-key">"confidence"</span>: <span class="code-string">"high"</span>     <span class="code-comment">// high | medium | low</span>
+  },
+  <span class="code-key">"meta"</span>: {
+    <span class="code-key">"request_id"</span>: <span class="code-string">"req_abc123"</span>,
+    <span class="code-key">"tokens_used"</span>: <span class="code-number">1250</span>
+  }
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- Detail Tiers -->
+    <section id="detail-tiers" class="doc-section mb-16">
+      <h3 class="text-xl font-bold mb-6">Detail Tiers</h3>
+      <p class="text-zinc-400 text-sm mb-4">Control response size with the <code class="text-emerald bg-emerald/10 px-1.5 py-0.5 rounded text-xs font-mono">?detail=</code> query parameter:</p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-surface-border">
+              <th class="text-left py-3 px-4 text-zinc-400 font-medium">Tier</th>
+              <th class="text-left py-3 px-4 text-zinc-400 font-medium">Tokens</th>
+              <th class="text-left py-3 px-4 text-zinc-400 font-medium">Includes</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-surface-border">
+            <tr><td class="py-3 px-4 font-mono text-emerald">micro</td><td class="py-3 px-4 text-zinc-400">500-1K</td><td class="py-3 px-4 text-zinc-400">ID, price, basic stats</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">standard</td><td class="py-3 px-4 text-zinc-400">2K-4K</td><td class="py-3 px-4 text-zinc-400">Full property details</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">extended</td><td class="py-3 px-4 text-zinc-400">8K-16K</td><td class="py-3 px-4 text-zinc-400">Property + market context</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">full</td><td class="py-3 px-4 text-zinc-400">32K+</td><td class="py-3 px-4 text-zinc-400">Everything + documents</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SDKs -->
+    <section id="sdks" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6">SDKs</h2>
+    </section>
+
+    <!-- Python SDK -->
+    <section id="python-sdk" class="doc-section mb-16">
+      <h3 class="text-xl font-bold mb-6">Python SDK</h3>
+      <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code><span class="code-keyword">from</span> parceldata <span class="code-keyword">import</span> ParcelData
+
+<span class="code-comment"># Initialize client</span>
+pd = ParcelData(api_key=<span class="code-string">"pk_live_your_key"</span>)
+
+<span class="code-comment"># Lookup a property</span>
+prop = pd.lookup(<span class="code-string">"123 Main St, Austin, TX"</span>)
+<span class="code-fn">print</span>(prop.address)       <span class="code-comment"># "123 Main St, Austin, TX 78701"</span>
+<span class="code-fn">print</span>(prop.zoning)        <span class="code-comment"># "R1-SF"</span>
+<span class="code-fn">print</span>(prop.lot_sqft)      <span class="code-comment"># 8500</span>
+<span class="code-fn">print</span>(prop.data_quality)  <span class="code-comment"># 0.92</span>
+
+<span class="code-comment"># Search properties</span>
+results = pd.search(
+    city=<span class="code-string">"Austin"</span>,
+    state=<span class="code-string">"TX"</span>,
+    zoning=<span class="code-string">"R1-SF"</span>,
+    min_sqft=<span class="code-number">2000</span>,
+    max_price=<span class="code-number">500000</span>,
+    detail=<span class="code-string">"standard"</span>
+)
+
+<span class="code-keyword">for</span> prop <span class="code-keyword">in</span> results:
+    <span class="code-fn">print</span>(<span class="code-string">f"</span>{prop.address}: ${prop.tax_assessed:,}<span class="code-string">"</span>)
+
+<span class="code-comment"># Get comparables</span>
+comps = pd.get_comparables(<span class="code-string">"TX-TRAVIS-12345"</span>, radius_miles=<span class="code-number">1</span>)
+
+<span class="code-comment"># Batch lookup</span>
+addresses = [<span class="code-string">"123 Main St, Austin, TX"</span>, <span class="code-string">"456 Oak Ave, Dallas, TX"</span>]
+batch = pd.batch_lookup(addresses)</code></pre>
+      </div>
+    </section>
+
+    <!-- TypeScript SDK -->
+    <section id="typescript-sdk" class="doc-section mb-16">
+      <h3 class="text-xl font-bold mb-6">TypeScript SDK</h3>
+      <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code><span class="code-keyword">import</span> { ParcelData } <span class="code-keyword">from</span> <span class="code-string">'@parceldata/sdk'</span>
+
+<span class="code-keyword">const</span> pd = <span class="code-keyword">new</span> <span class="code-fn">ParcelData</span>({ apiKey: <span class="code-string">'pk_live_your_key'</span> })
+
+<span class="code-comment">// Lookup a property</span>
+<span class="code-keyword">const</span> property = <span class="code-keyword">await</span> pd.<span class="code-fn">lookup</span>({
+  address: <span class="code-string">'123 Main St, Austin, TX'</span>
+})
+
+console.<span class="code-fn">log</span>(property.zoning)              <span class="code-comment">// "R1-SF"</span>
+console.<span class="code-fn">log</span>(property.dataQuality.score)    <span class="code-comment">// 0.92</span>
+
+<span class="code-comment">// Search with filters</span>
+<span class="code-keyword">const</span> results = <span class="code-keyword">await</span> pd.<span class="code-fn">search</span>({
+  city: <span class="code-string">'Austin'</span>,
+  state: <span class="code-string">'TX'</span>,
+  zoning: <span class="code-string">'R1-SF'</span>,
+  detail: <span class="code-string">'micro'</span>  <span class="code-comment">// minimize token usage</span>
+})</code></pre>
+      </div>
+    </section>
+
+    <!-- MCP Server -->
+    <section id="mcp" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6">MCP Server</h2>
+      <p class="text-zinc-400 text-sm mb-4">Add ParcelData as an MCP server for Claude Desktop or any MCP-compatible agent:</p>
+      <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code><span class="code-comment">// claude_desktop_config.json</span>
+{
+  <span class="code-key">"mcpServers"</span>: {
+    <span class="code-key">"parceldata"</span>: {
+      <span class="code-key">"command"</span>: <span class="code-string">"npx"</span>,
+      <span class="code-key">"args"</span>: [<span class="code-string">"@parceldata/mcp"</span>],
+      <span class="code-key">"env"</span>: {
+        <span class="code-key">"PARCELDATA_API_KEY"</span>: <span class="code-string">"pk_live_your_key"</span>
+      }
+    }
+  }
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- MCP Tools -->
+    <section id="mcp-tools" class="doc-section mb-16">
+      <h3 class="text-xl font-bold mb-6">Available MCP Tools</h3>
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">property_lookup</code>
+          <p class="text-xs text-zinc-500 mt-1">Look up a property by address, parcel ID, or coordinates</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">property_search</code>
+          <p class="text-xs text-zinc-500 mt-1">Search properties with filters</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">zoning_check</code>
+          <p class="text-xs text-zinc-500 mt-1">Get zoning information and allowed uses</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">permit_history</code>
+          <p class="text-xs text-zinc-500 mt-1">Get building permits for a property</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">get_comparables</code>
+          <p class="text-xs text-zinc-500 mt-1">Find comparable properties and sales</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">get_market_trends</code>
+          <p class="text-xs text-zinc-500 mt-1">Market statistics for a geographic area</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">estimate_value</code>
+          <p class="text-xs text-zinc-500 mt-1">Get an automated valuation estimate</p>
+        </div>
+        <div class="bg-surface border border-surface-border rounded-lg p-4">
+          <code class="text-emerald text-sm font-mono">check_development_feasibility</code>
+          <p class="text-xs text-zinc-500 mt-1">Analyze development potential for a parcel</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Examples -->
+    <section id="examples" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6">Examples</h2>
+      
+      <div class="space-y-6">
+        <div class="bg-surface border border-surface-border rounded-xl p-6">
+          <h3 class="text-lg font-semibold mb-3">Property Search Agent</h3>
+          <p class="text-zinc-400 text-sm mb-4">Build an agent that can find properties matching specific criteria:</p>
+          <div class="bg-[#0a0a0a] border border-[#1a1a1a] rounded-lg p-4 font-mono text-sm overflow-x-auto">
+<pre><code><span class="code-keyword">from</span> parceldata <span class="code-keyword">import</span> ParcelData
+
+pd = ParcelData(api_key=<span class="code-string">"pk_live_..."</span>)
+
+<span class="code-comment"># Find undervalued properties near good schools</span>
+results = pd.search(
+    city=<span class="code-string">"Austin"</span>,
+    min_school_rating=<span class="code-number">8</span>,
+    max_price=<span class="code-number">400000</span>,
+    min_lot_sqft=<span class="code-number">6000</span>,
+    detail=<span class="code-string">"standard"</span>
+)
+
+<span class="code-keyword">for</span> p <span class="code-keyword">in</span> results:
+    comps = pd.get_comparables(p.parcel_id)
+    avg_comp = <span class="code-fn">sum</span>(c.price <span class="code-keyword">for</span> c <span class="code-keyword">in</span> comps) / <span class="code-fn">len</span>(comps)
+    <span class="code-keyword">if</span> p.tax_assessed < avg_comp * <span class="code-number">0.8</span>:
+        <span class="code-fn">print</span>(<span class="code-string">f"Potential deal: </span>{p.address}<span class="code-string">"</span>)</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data Quality -->
+    <section id="data-quality" class="doc-section mb-16">
+      <h2 class="text-2xl font-bold mb-6">Data Quality</h2>
+      <p class="text-zinc-400 text-sm mb-4">Every ParcelData response includes a quality score so agents can make informed decisions about data reliability.</p>
+      
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-surface-border">
+              <th class="text-left py-3 px-4 text-zinc-400 font-medium">Component</th>
+              <th class="text-left py-3 px-4 text-zinc-400 font-medium">Description</th>
+              <th class="text-left py-3 px-4 text-zinc-400 font-medium">Range</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-surface-border">
+            <tr><td class="py-3 px-4 font-mono text-emerald">score</td><td class="py-3 px-4 text-zinc-400">Composite quality score</td><td class="py-3 px-4 text-zinc-400">0-1</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">completeness</td><td class="py-3 px-4 text-zinc-400">Percentage of fields populated</td><td class="py-3 px-4 text-zinc-400">0-1</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">accuracy</td><td class="py-3 px-4 text-zinc-400">Cross-source verification</td><td class="py-3 px-4 text-zinc-400">0-1</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">timeliness</td><td class="py-3 px-4 text-zinc-400">Freshness decay factor</td><td class="py-3 px-4 text-zinc-400">0-1</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">freshness_hours</td><td class="py-3 px-4 text-zinc-400">Hours since last data update</td><td class="py-3 px-4 text-zinc-400">0+</td></tr>
+            <tr><td class="py-3 px-4 font-mono text-emerald">confidence</td><td class="py-3 px-4 text-zinc-400">Overall confidence level</td><td class="py-3 px-4 text-zinc-400">high/medium/low</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- External links -->
+    <div class="border-t border-surface-border pt-8 mt-12">
+      <div class="grid sm:grid-cols-3 gap-4">
+        <a href="https://api.parceldata.ai/v1/docs" class="bg-surface border border-surface-border rounded-xl p-5 hover:border-emerald/30 transition-colors group">
+          <h4 class="font-semibold text-sm mb-1 group-hover:text-emerald transition-colors">Interactive API Docs</h4>
+          <p class="text-xs text-zinc-500">Try endpoints in your browser</p>
+        </a>
+        <a href="https://api.parceldata.ai/v1/openapi.json" class="bg-surface border border-surface-border rounded-xl p-5 hover:border-emerald/30 transition-colors group">
+          <h4 class="font-semibold text-sm mb-1 group-hover:text-emerald transition-colors">OpenAPI Spec</h4>
+          <p class="text-xs text-zinc-500">Machine-readable API schema</p>
+        </a>
+        <a href="https://github.com/Dharma-Technologies/parceldata" class="bg-surface border border-surface-border rounded-xl p-5 hover:border-emerald/30 transition-colors group">
+          <h4 class="font-semibold text-sm mb-1 group-hover:text-emerald transition-colors">Source Code</h4>
+          <p class="text-xs text-zinc-500">MIT licensed on GitHub</p>
+        </a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Footer -->
+<footer class="lg:ml-64 border-t border-surface-border py-8 px-4 sm:px-8 lg:px-12">
+  <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
+    <p class="text-xs text-zinc-600">Built by <a href="about.html" class="hover:text-zinc-400 transition-colors">Dharma Technologies</a></p>
+    <p class="text-xs text-zinc-600">ParcelData is open source (<a href="https://opensource.org/licenses/MIT" class="hover:text-zinc-400 transition-colors">MIT</a>)</p>
+  </div>
+</footer>
+
+<script>
+// Mobile menu toggle
+document.getElementById('mobile-toggle').addEventListener('click', () => {
+  document.getElementById('mobile-menu').classList.toggle('open');
+});
+
+// Active sidebar link on scroll
+const sections = document.querySelectorAll('.doc-section');
+const sidebarLinks = document.querySelectorAll('.sidebar-link');
+
+window.addEventListener('scroll', () => {
+  let current = '';
+  sections.forEach(section => {
+    const top = section.offsetTop - 120;
+    if (window.scrollY >= top) current = section.id;
+  });
+  sidebarLinks.forEach(link => {
+    link.classList.remove('active');
+    if (link.getAttribute('href') === '#' + current) link.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
