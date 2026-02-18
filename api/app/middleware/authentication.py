@@ -14,9 +14,10 @@ PUBLIC_PATHS: set[str] = {
     "/docs",
     "/redoc",
     "/openapi.json",
+    "/v1/auth/signup",
 }
 
-PUBLIC_PREFIXES: tuple[str, ...] = ("/docs", "/redoc")
+PUBLIC_PREFIXES: tuple[str, ...] = ("/docs", "/redoc", "/webhooks")
 
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):
