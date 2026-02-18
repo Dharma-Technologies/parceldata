@@ -1,0 +1,13 @@
+## Codebase Patterns
+- Project uses FastAPI with Python 3.12, async SQLAlchemy, Redis
+- All config via pydantic-settings with env vars
+- Use structlog for JSON logging
+- Docker-compose has postgres (PostGIS), Redis, API services
+- All API responses must include data_quality object
+- REST endpoints under /v1/ prefix
+- File naming: snake_case.py for Python
+- Type annotations required on all functions
+- Google-style docstrings
+
+---
+

@@ -1,0 +1,61 @@
+"""ParcelData API — Real estate data for AI agents."""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.lifecycle import shutdown, startup
+from app.middleware import (
+    AuthenticationMiddleware,
+    ErrorHandlerMiddleware,
+    RateLimitMiddleware,
+)
+from app.routes.analytics import router as analytics_router
+from app.routes.auth import router as auth_router
+from app.routes.health import router as health_router
+from app.routes.properties import router as properties_router
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Manage startup and shutdown of external connections."""
+    await startup()
+    yield
+    await shutdown()
+
+
+app = FastAPI(
+    title="ParcelData API",
+    description="Real estate data for AI agents",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
+
+# --- Middleware (applied bottom-up: error → auth → rate limit) ---
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(AuthenticationMiddleware)
+app.add_middleware(ErrorHandlerMiddleware)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=[
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "X-RateLimit-Reset",
+    ],
+)
+
+# --- Routers ---
+app.include_router(health_router)
+app.include_router(properties_router)
+app.include_router(analytics_router)
+app.include_router(auth_router)

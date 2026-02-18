@@ -34,7 +34,7 @@ numpy>=1.26.0
 
 # Address Normalization
 usaddress>=0.5.10
-postal>=1.1.10
+# postal>=1.1.10  # Requires libpostal C library; install separately
 
 # Geocoding
 geopy>=2.4.1
