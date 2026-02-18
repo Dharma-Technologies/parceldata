@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.models.address import Address
+from app.models.api_key import Account, APIKey, TierEnum
 from app.models.base import Base, DataQualityMixin, ProvenanceMixin, TimestampMixin
 from app.models.building import Building
 from app.models.environmental import Environmental
@@ -14,10 +15,13 @@ from app.models.property import Property
 from app.models.school import School
 from app.models.tax import Tax
 from app.models.transaction import Transaction
+from app.models.usage import UsageEvent, UsageRecord
 from app.models.valuation import Valuation
 from app.models.zoning import Zoning
 
 __all__ = [
+    "APIKey",
+    "Account",
     "Address",
     "Base",
     "Building",
@@ -31,8 +35,11 @@ __all__ = [
     "ProvenanceMixin",
     "School",
     "Tax",
+    "TierEnum",
     "TimestampMixin",
     "Transaction",
+    "UsageEvent",
+    "UsageRecord",
     "Valuation",
     "Zoning",
 ]
