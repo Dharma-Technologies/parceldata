@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.graphql.schema import graphql_router
 from app.lifecycle import shutdown, startup
 from app.middleware import (
     AuthenticationMiddleware,
@@ -59,3 +60,4 @@ app.include_router(health_router)
 app.include_router(properties_router)
 app.include_router(analytics_router)
 app.include_router(auth_router)
+app.include_router(graphql_router, prefix="/graphql")
