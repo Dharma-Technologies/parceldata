@@ -5,7 +5,7 @@
   "stories": [
     {"id": "S1", "title": "Provider Adapter Base Class", "passes": true},
     {"id": "S2", "title": "Regrid Adapter", "passes": true},
-    {"id": "S3", "title": "ATTOM Adapter", "passes": false},
+    {"id": "S3", "title": "ATTOM Adapter", "passes": true},
     {"id": "S4", "title": "Census Adapter", "passes": false},
     {"id": "S5", "title": "FEMA Adapter", "passes": false},
     {"id": "S6", "title": "Address Normalization Service", "passes": false},
