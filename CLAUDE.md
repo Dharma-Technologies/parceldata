@@ -282,1071 +282,244 @@ docker-compose up -d
 8. Use environment variables for ALL configuration (no hardcoded values)
 9. MIT license — code is open source
 
-## Current Stage: P10-06-mcp-server
+## Current Stage: P10-07-sdk-docs
 
-# PRD: P10-06 — MCP Server
+# P10-07: Python SDK & Documentation
 
-## Overview
-Build the TypeScript MCP server with all property tools: property_lookup, property_search, get_comparables, get_market_trends, check_zoning, get_permits, get_owner_portfolio, estimate_value, and check_development_feasibility.
+**Phase 7 — SDK, Documentation & Agent Readability**
+
+Build the Python SDK, API documentation, and agent-readable endpoints.
 
 ---
 
 ## Stories
 
-### S1: MCP Server Entry Point
-Create `mcp/src/index.ts` as the main server entry point.
+### Story 1: Python SDK Package Structure
+**Directory:** `sdk/`
 
-```typescript
-// mcp/src/index.ts
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import {
-  ListToolsRequestSchema,
-  CallToolRequestSchema,
-  ErrorCode,
-  McpError,
-} from "@modelcontextprotocol/sdk/types.js";
-import { propertyLookup } from "./tools/property-lookup.js";
-import { propertySearch } from "./tools/property-search.js";
-import { getComparables } from "./tools/get-comparables.js";
-import { getMarketTrends } from "./tools/get-market-trends.js";
-import { checkZoning } from "./tools/check-zoning.js";
-import { getPermits } from "./tools/get-permits.js";
-import { getOwnerPortfolio } from "./tools/get-owner-portfolio.js";
-import { estimateValue } from "./tools/estimate-value.js";
-import { checkDevelopmentFeasibility } from "./tools/check-development-feasibility.js";
-import { TOOLS } from "./tools/definitions.js";
+Create a pip-installable Python SDK:
 
-const server = new Server(
-  {
-    name: "parceldata",
-    version: "0.1.0",
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
-
-// List available tools
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
-    tools: TOOLS,
-  };
-});
-
-// Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
-
-  try {
-    switch (name) {
-      case "property_lookup":
-        return await propertyLookup(args);
-      case "property_search":
-        return await propertySearch(args);
-      case "get_comparables":
-        return await getComparables(args);
-      case "get_market_trends":
-        return await getMarketTrends(args);
-      case "check_zoning":
-        return await checkZoning(args);
-      case "get_permits":
-        return await getPermits(args);
-      case "get_owner_portfolio":
-        return await getOwnerPortfolio(args);
-      case "estimate_value":
-        return await estimateValue(args);
-      case "check_development_feasibility":
-        return await checkDevelopmentFeasibility(args);
-      default:
-        throw new McpError(
-          ErrorCode.MethodNotFound,
-          `Unknown tool: ${name}`
-        );
-    }
-  } catch (error) {
-    if (error instanceof McpError) {
-      throw error;
-    }
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Tool error: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
-  }
-});
-
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("ParcelData MCP server running on stdio");
-}
-
-main().catch(console.error);
+```
+sdk/
+├── parceldata/
+│   ├── __init__.py          # Version, top-level imports
+│   ├── client.py            # ParcelDataClient class
+│   ├── models.py            # Pydantic response models
+│   ├── exceptions.py        # Custom exceptions
+│   ├── types.py             # Type definitions
+│   └── utils.py             # Helpers
+├── tests/
+│   ├── test_client.py
+│   ├── test_models.py
+│   └── conftest.py
+├── setup.py
+├── pyproject.toml
+├── README.md
+└── LICENSE
 ```
 
-### S2: Tool Definitions
-Create `mcp/src/tools/definitions.ts` with all tool schemas.
+**Requirements:**
+- `httpx` for async HTTP
+- `pydantic` for models
+- Python 3.9+ compatible
+- Type hints throughout
 
-```typescript
-// mcp/src/tools/definitions.ts
-import { Tool } from "@modelcontextprotocol/sdk/types.js";
+---
 
-export const TOOLS: Tool[] = [
-  {
-    name: "property_lookup",
-    description: "Get comprehensive property data by address, parcel ID, or coordinates",
-    inputSchema: {
-      type: "object",
-      properties: {
-        address: {
-          type: "string",
-          description: "Full property address (e.g., '123 Main St, Austin, TX 78701')",
-        },
-        parcel_id: {
-          type: "string",
-          description: "Dharma parcel ID (e.g., 'TX-TRAVIS-0234567')",
-        },
-        lat: {
-          type: "number",
-          description: "Latitude coordinate",
-        },
-        lng: {
-          type: "number",
-          description: "Longitude coordinate",
-        },
-        include: {
-          type: "array",
-          items: { type: "string" },
-          description: "Data sections to include: 'basic', 'valuation', 'zoning', 'permits', 'title', 'tax', 'environmental', 'schools', 'hoa', 'demographics', 'all'",
-        },
-        detail: {
-          type: "string",
-          enum: ["micro", "standard", "extended", "full"],
-          description: "Response detail level for token optimization",
-        },
-      },
-    },
-  },
-  {
-    name: "property_search",
-    description: "Search for properties matching criteria within a geographic area",
-    inputSchema: {
-      type: "object",
-      properties: {
-        city: { type: "string" },
-        state: { type: "string" },
-        zip: { type: "string" },
-        bounds: {
-          type: "object",
-          properties: {
-            north: { type: "number" },
-            south: { type: "number" },
-            east: { type: "number" },
-            west: { type: "number" },
-          },
-        },
-        property_type: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["single_family", "condo", "townhouse", "multi_family", "land", "commercial"],
-          },
-        },
-        bedrooms_min: { type: "integer" },
-        bedrooms_max: { type: "integer" },
-        bathrooms_min: { type: "number" },
-        sqft_min: { type: "integer" },
-        sqft_max: { type: "integer" },
-        lot_sqft_min: { type: "integer" },
-        year_built_min: { type: "integer" },
-        year_built_max: { type: "integer" },
-        price_min: { type: "integer" },
-        price_max: { type: "integer" },
-        listing_status: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["active", "pending", "sold", "off_market"],
-          },
-        },
-        zoning: {
-          type: "array",
-          items: { type: "string" },
-        },
-        limit: { type: "integer", default: 25 },
-      },
-      required: ["state"],
-    },
-  },
-  {
-    name: "get_comparables",
-    description: "Find comparable sales for a property to estimate value",
-    inputSchema: {
-      type: "object",
-      properties: {
-        property_id: {
-          type: "string",
-          description: "Dharma parcel ID of subject property",
-        },
-        address: {
-          type: "string",
-          description: "Address of subject property (alternative to property_id)",
-        },
-        radius_miles: {
-          type: "number",
-          default: 1,
-          description: "Search radius in miles",
-        },
-        months: {
-          type: "integer",
-          default: 6,
-          description: "Look back period in months",
-        },
-        limit: { type: "integer", default: 10 },
-      },
-    },
-  },
-  {
-    name: "get_market_trends",
-    description: "Get market statistics and trends for an area",
-    inputSchema: {
-      type: "object",
-      properties: {
-        zip: { type: "string" },
-        city: { type: "string" },
-        county: { type: "string" },
-        state: { type: "string" },
-        property_type: { type: "string" },
-        period: {
-          type: "string",
-          enum: ["3m", "6m", "12m", "24m", "5y"],
-          default: "12m",
-        },
-      },
-      required: ["state"],
-    },
-  },
-  {
-    name: "check_zoning",
-    description: "Check if a specific use is permitted at a property",
-    inputSchema: {
-      type: "object",
-      properties: {
-        property_id: { type: "string" },
-        address: { type: "string" },
-        proposed_use: {
-          type: "string",
-          description: "The intended use (e.g., 'single_family', 'duplex', 'retail', 'restaurant', 'adu')",
-        },
-      },
-      required: ["proposed_use"],
-    },
-  },
-  {
-    name: "get_permits",
-    description: "Get permit history and active permits for a property",
-    inputSchema: {
-      type: "object",
-      properties: {
-        property_id: { type: "string" },
-        address: { type: "string" },
-        status: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["issued", "in_review", "approved", "inspection", "finaled", "expired"],
-          },
-        },
-        permit_type: {
-          type: "array",
-          items: {
-            type: "string",
-            enum: ["building", "electrical", "plumbing", "mechanical", "demolition", "grading"],
-          },
-        },
-        since_date: { type: "string", format: "date" },
-      },
-    },
-  },
-  {
-    name: "get_owner_portfolio",
-    description: "Find all properties owned by a person or entity",
-    inputSchema: {
-      type: "object",
-      properties: {
-        owner_name: {
-          type: "string",
-          description: "Name of owner (person or entity)",
-        },
-        state: { type: "string" },
-        include_related_entities: {
-          type: "boolean",
-          default: true,
-          description: "Include properties owned by related LLCs/trusts",
-        },
-      },
-      required: ["owner_name"],
-    },
-  },
-  {
-    name: "estimate_value",
-    description: "Get an automated valuation estimate for a property",
-    inputSchema: {
-      type: "object",
-      properties: {
-        property_id: { type: "string" },
-        address: { type: "string" },
-        adjustments: {
-          type: "object",
-          properties: {
-            condition: {
-              type: "string",
-              enum: ["poor", "fair", "average", "good", "excellent"],
-            },
-            recent_renovations: { type: "boolean" },
-            renovation_value: { type: "integer" },
-          },
-        },
-      },
-    },
-  },
-  {
-    name: "check_development_feasibility",
-    description: "Given a parcel, return max buildable area based on zoning code — FAR, height limits, setbacks, permitted uses",
-    inputSchema: {
-      type: "object",
-      properties: {
-        property_id: {
-          type: "string",
-          description: "Dharma parcel ID (e.g., 'TX-TRAVIS-0234567')",
-        },
-        proposed_use: {
-          type: "string",
-          description: "Optional: intended use (e.g., 'single_family', 'multifamily', 'retail')",
-        },
-      },
-      required: ["property_id"],
-    },
-  },
-];
+### Story 2: ParcelDataClient Implementation
+**File:** `sdk/parceldata/client.py`
+
+```python
+class ParcelDataClient:
+    def __init__(self, api_key: str, base_url: str = "https://api.parceldata.ai/v1"):
+        ...
+
+    async def property_lookup(self, parcel_id: str, tier: str = "standard") -> Property:
+        """Look up a single property by parcel ID."""
+
+    async def property_search(self, query: PropertySearchQuery) -> SearchResults:
+        """Search properties with filters."""
+
+    async def get_comps(self, parcel_id: str, radius_miles: float = 1.0, limit: int = 10) -> list[Property]:
+        """Get comparable properties."""
+
+    async def batch_lookup(self, parcel_ids: list[str]) -> BatchResults:
+        """Batch property lookup (up to 100)."""
+
+    async def geocode(self, address: str) -> GeocodingResult:
+        """Geocode an address to lat/lng + parcel."""
+
+    def property_lookup_sync(self, parcel_id: str, tier: str = "standard") -> Property:
+        """Synchronous wrapper."""
 ```
 
-### S3: API Client
-Create `mcp/src/client/api.ts` for ParcelData API calls.
+Both async and sync methods. Automatic retry with exponential backoff. Rate limit handling.
 
-```typescript
-// mcp/src/client/api.ts
-interface ApiConfig {
-  baseUrl: string;
-  apiKey: string;
-}
+---
 
-const config: ApiConfig = {
-  baseUrl: process.env.PARCELDATA_API_URL || "https://api.parceldata.ai",
-  apiKey: process.env.PARCELDATA_API_KEY || "",
-};
+### Story 3: SDK Response Models
+**File:** `sdk/parceldata/models.py`
 
-export async function apiCall<T>(
-  endpoint: string,
-  options: {
-    method?: "GET" | "POST";
-    params?: Record<string, string | number | boolean | undefined>;
-    body?: Record<string, unknown>;
-  } = {}
-): Promise<T> {
-  const { method = "GET", params, body } = options;
+Pydantic models matching API responses:
+- `Property` — full property record
+- `PropertySummary` — compact version
+- `SearchResults` — paginated results
+- `BatchResults` — batch response
+- `GeocodingResult` — geocoding response
+- `DataQuality` — quality scores
+- `Provenance` — data source metadata
 
-  let url = `${config.baseUrl}${endpoint}`;
-  
-  if (params) {
-    const searchParams = new URLSearchParams();
-    for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined) {
-        searchParams.set(key, String(value));
-      }
-    }
-    const queryString = searchParams.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
-  }
+Token tier support: `micro`, `standard`, `full`
 
-  const headers: Record<string, string> = {
-    "Authorization": `Bearer ${config.apiKey}`,
-    "Content-Type": "application/json",
-  };
+---
 
-  const response = await fetch(url, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+### Story 4: SDK Error Handling
+**File:** `sdk/parceldata/exceptions.py`
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Unknown error" }));
-    throw new Error(`API error: ${error.message || response.statusText}`);
-  }
-
-  return response.json();
-}
+```python
+class ParcelDataError(Exception): ...
+class AuthenticationError(ParcelDataError): ...
+class RateLimitError(ParcelDataError): ...
+class NotFoundError(ParcelDataError): ...
+class ValidationError(ParcelDataError): ...
+class QuotaExceededError(ParcelDataError): ...
 ```
 
-### S4: Property Lookup Tool
-Create `mcp/src/tools/property-lookup.ts`.
+---
 
-```typescript
-// mcp/src/tools/property-lookup.ts
-import { apiCall } from "../client/api.js";
+### Story 5: SDK Tests
+**Directory:** `sdk/tests/`
 
-interface PropertyLookupArgs {
-  address?: string;
-  parcel_id?: string;
-  lat?: number;
-  lng?: number;
-  include?: string[];
-  detail?: "micro" | "standard" | "extended" | "full";
-}
+- Test client initialization
+- Test all endpoint methods (mocked responses)
+- Test error handling
+- Test retry logic
+- Test sync wrappers
+- Test model serialization
 
-interface PropertyResponse {
-  property_id: string;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    zip: string;
-    formatted: string;
-  };
-  // ... other fields
-}
+---
 
-export async function propertyLookup(args: PropertyLookupArgs) {
-  // Determine endpoint based on provided identifiers
-  let endpoint: string;
-  let params: Record<string, string | number | undefined> = {};
+### Story 6: OpenAPI Specification
+**File:** `api/app/openapi_config.py`
 
-  if (args.parcel_id) {
-    endpoint = `/v1/properties/${args.parcel_id}`;
-  } else if (args.address) {
-    endpoint = "/v1/properties/address";
-    params.street = args.address;
-    // Parse city/state from address if provided together
-    const parts = args.address.split(",").map((p) => p.trim());
-    if (parts.length >= 2) {
-      params.street = parts[0];
-      params.city = parts[1];
-      if (parts.length >= 3) {
-        params.state = parts[2].split(" ")[0];
-      }
-    }
-  } else if (args.lat !== undefined && args.lng !== undefined) {
-    endpoint = "/v1/properties/coordinates";
-    params.lat = args.lat;
-    params.lng = args.lng;
-  } else {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: "Must provide address, parcel_id, or lat/lng coordinates",
-          }),
-        },
-      ],
-    };
-  }
+Configure FastAPI's auto-generated OpenAPI spec:
+- Title: "ParcelData.ai API"
+- Version: "1.0.0"
+- Description with examples
+- Tag grouping (Properties, Search, Batch, Auth, Admin)
+- Response examples for every endpoint
+- Error response schemas
 
-  if (args.detail) {
-    params.detail = args.detail;
-  }
+Expose at `/v1/docs` (Swagger UI) and `/v1/redoc` (ReDoc).
 
-  try {
-    const property = await apiCall<PropertyResponse>(endpoint, { params });
+---
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(property, null, 2),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
+### Story 7: /llms.txt Endpoint
+**File:** `api/app/routes/agent_readable.py`
+
+```
+GET /llms.txt
 ```
 
-### S5: Property Search Tool
-Create `mcp/src/tools/property-search.ts`.
+Returns plain text description of the API optimized for LLM consumption:
+```
+# ParcelData.ai API
 
-```typescript
-// mcp/src/tools/property-search.ts
-import { apiCall } from "../client/api.js";
+> Clean, universal real estate data for AI agents.
 
-interface PropertySearchArgs {
-  city?: string;
-  state: string;
-  zip?: string;
-  bounds?: {
-    north: number;
-    south: number;
-    east: number;
-    west: number;
-  };
-  property_type?: string[];
-  bedrooms_min?: number;
-  bedrooms_max?: number;
-  bathrooms_min?: number;
-  sqft_min?: number;
-  sqft_max?: number;
-  lot_sqft_min?: number;
-  year_built_min?: number;
-  year_built_max?: number;
-  price_min?: number;
-  price_max?: number;
-  listing_status?: string[];
-  zoning?: string[];
-  limit?: number;
-}
+## Base URL
+https://api.parceldata.ai/v1
 
-export async function propertySearch(args: PropertySearchArgs) {
-  try {
-    const response = await apiCall<{
-      results: unknown[];
-      total: number;
-      has_more: boolean;
-    }>("/v1/properties/search", {
-      method: "POST",
-      body: args,
-    });
+## Authentication
+API key via X-API-Key header or ?api_key= query parameter.
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              total: response.total,
-              returned: response.results.length,
-              has_more: response.has_more,
-              results: response.results,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
+## Endpoints
+
+### Property Lookup
+GET /v1/properties/{parcel_id}
+Returns property details. Use ?tier=micro|standard|full for token optimization.
+
+### Property Search
+GET /v1/properties/search?query={text}&lat={lat}&lng={lng}&radius={miles}
+Search properties by text, location, or filters.
+
+### Comparable Properties
+GET /v1/properties/{parcel_id}/comps?radius=1.0&limit=10
+Get comparable properties near a given property.
+
+### Batch Lookup
+POST /v1/properties/batch
+Body: {"parcel_ids": ["ID1", "ID2", ...]}
+Look up multiple properties (max 100 per request).
+
+## MCP Server
+Connect via MCP at mcp://api.parceldata.ai/v1
+Tools: property_lookup, property_search, get_comps, batch_lookup
 ```
 
-### S6: Get Comparables Tool
-Create `mcp/src/tools/get-comparables.ts`.
+---
 
-```typescript
-// mcp/src/tools/get-comparables.ts
-import { apiCall } from "../client/api.js";
+### Story 8: /.well-known/ai-plugin.json
+**File:** `api/app/routes/agent_readable.py`
 
-interface GetComparablesArgs {
-  property_id?: string;
-  address?: string;
-  radius_miles?: number;
-  months?: number;
-  limit?: number;
-}
-
-export async function getComparables(args: GetComparablesArgs) {
-  const params: Record<string, string | number | undefined> = {};
-
-  if (args.property_id) {
-    params.property_id = args.property_id;
-  } else if (args.address) {
-    // First lookup the property, then get comps
-    const lookupResult = await apiCall<{ property_id: string }>(
-      "/v1/properties/address",
-      { params: { street: args.address } }
-    );
-    params.property_id = lookupResult.property_id;
-  } else {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: "Must provide property_id or address",
-          }),
-        },
-      ],
-    };
+```json
+{
+  "schema_version": "v1",
+  "name_for_human": "ParcelData.ai",
+  "name_for_model": "parceldata",
+  "description_for_human": "Clean, universal real estate data API",
+  "description_for_model": "Access US property records, valuations, ownership, tax, zoning, and spatial data. Use for property lookups, comparable analysis, and batch data retrieval.",
+  "auth": {
+    "type": "service_http",
+    "authorization_type": "bearer"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://api.parceldata.ai/v1/openapi.json"
   }
-
-  if (args.radius_miles) params.radius_miles = args.radius_miles;
-  if (args.months) params.months = args.months;
-  if (args.limit) params.limit = args.limit;
-
-  try {
-    const response = await apiCall<unknown>("/v1/analytics/comparables", {
-      params,
-    });
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(response, null, 2),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-```
-
-### S7: Get Market Trends Tool
-Create `mcp/src/tools/get-market-trends.ts`.
-
-```typescript
-// mcp/src/tools/get-market-trends.ts
-import { apiCall } from "../client/api.js";
-
-interface GetMarketTrendsArgs {
-  zip?: string;
-  city?: string;
-  county?: string;
-  state: string;
-  property_type?: string;
-  period?: "3m" | "6m" | "12m" | "24m" | "5y";
-}
-
-export async function getMarketTrends(args: GetMarketTrendsArgs) {
-  try {
-    const response = await apiCall<unknown>("/v1/analytics/market-trends", {
-      params: args as Record<string, string | undefined>,
-    });
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(response, null, 2),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-```
-
-### S8: Check Zoning Tool
-Create `mcp/src/tools/check-zoning.ts`.
-
-```typescript
-// mcp/src/tools/check-zoning.ts
-import { apiCall } from "../client/api.js";
-
-interface CheckZoningArgs {
-  property_id?: string;
-  address?: string;
-  proposed_use: string;
-}
-
-interface ZoningResponse {
-  property_id: string;
-  address: string;
-  current_zoning: string;
-  proposed_use: string;
-  permitted: boolean;
-  permit_type: "by_right" | "conditional" | "variance" | "prohibited";
-  requirements?: {
-    max_size_sqft?: number;
-    max_height_ft?: number;
-    setback_rear_ft?: number;
-    setback_side_ft?: number;
-    parking_spaces?: number;
-    owner_occupancy_required?: boolean;
-  };
-  notes?: string;
-}
-
-export async function checkZoning(args: CheckZoningArgs) {
-  // First get the property
-  let propertyId = args.property_id;
-
-  if (!propertyId && args.address) {
-    try {
-      const lookup = await apiCall<{ property_id: string }>(
-        "/v1/properties/address",
-        { params: { street: args.address } }
-      );
-      propertyId = lookup.property_id;
-    } catch {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              error: "Property not found at provided address",
-            }),
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-
-  if (!propertyId) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: "Must provide property_id or address",
-          }),
-        },
-      ],
-    };
-  }
-
-  try {
-    // Get property with zoning data
-    const property = await apiCall<{
-      property_id: string;
-      address: { formatted: string };
-      zoning: {
-        zone_code: string;
-        zone_description: string;
-        permitted_uses: string[];
-        conditional_uses: string[];
-        setbacks: { front: number; rear: number; side: number };
-        max_height: number;
-        max_far: number;
-      };
-    }>(`/v1/properties/${propertyId}?detail=standard`, {});
-
-    const zoning = property.zoning;
-    const use = args.proposed_use.toLowerCase();
-
-    // Check if use is permitted
-    let permitted = false;
-    let permitType: "by_right" | "conditional" | "variance" | "prohibited" =
-      "prohibited";
-
-    if (zoning.permitted_uses?.some((u) => u.toLowerCase().includes(use))) {
-      permitted = true;
-      permitType = "by_right";
-    } else if (
-      zoning.conditional_uses?.some((u) => u.toLowerCase().includes(use))
-    ) {
-      permitted = true;
-      permitType = "conditional";
-    }
-
-    const response: ZoningResponse = {
-      property_id: property.property_id,
-      address: property.address.formatted,
-      current_zoning: zoning.zone_code,
-      proposed_use: args.proposed_use,
-      permitted,
-      permit_type: permitType,
-      requirements: {
-        max_height_ft: zoning.max_height,
-        setback_rear_ft: zoning.setbacks?.rear,
-        setback_side_ft: zoning.setbacks?.side,
-      },
-    };
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(response, null, 2),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-```
-
-### S9: Get Permits Tool
-Create `mcp/src/tools/get-permits.ts`.
-
-```typescript
-// mcp/src/tools/get-permits.ts
-import { apiCall } from "../client/api.js";
-
-interface GetPermitsArgs {
-  property_id?: string;
-  address?: string;
-  status?: string[];
-  permit_type?: string[];
-  since_date?: string;
-}
-
-export async function getPermits(args: GetPermitsArgs) {
-  let propertyId = args.property_id;
-
-  if (!propertyId && args.address) {
-    try {
-      const lookup = await apiCall<{ property_id: string }>(
-        "/v1/properties/address",
-        { params: { street: args.address } }
-      );
-      propertyId = lookup.property_id;
-    } catch {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({ error: "Property not found" }),
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-
-  if (!propertyId) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: "Must provide property_id or address",
-          }),
-        },
-      ],
-    };
-  }
-
-  try {
-    const property = await apiCall<{
-      property_id: string;
-      permits: Array<{
-        permit_number: string;
-        type: string;
-        description: string;
-        status: string;
-        issue_date: string;
-        valuation: number;
-        contractor: string;
-      }>;
-    }>(`/v1/properties/${propertyId}?detail=extended`, {});
-
-    let permits = property.permits || [];
-
-    // Filter by status if specified
-    if (args.status && args.status.length > 0) {
-      permits = permits.filter((p) =>
-        args.status!.some((s) => p.status.toLowerCase().includes(s.toLowerCase()))
-      );
-    }
-
-    // Filter by type if specified
-    if (args.permit_type && args.permit_type.length > 0) {
-      permits = permits.filter((p) =>
-        args.permit_type!.some((t) => p.type.toLowerCase().includes(t.toLowerCase()))
-      );
-    }
-
-    // Filter by date if specified
-    if (args.since_date) {
-      const sinceDate = new Date(args.since_date);
-      permits = permits.filter((p) => new Date(p.issue_date) >= sinceDate);
-    }
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              property_id: propertyId,
-              permit_count: permits.length,
-              permits,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-```
-
-### S10: Remaining Tools
-Create the remaining tool files: `get-owner-portfolio.ts`, `estimate-value.ts`, `check-development-feasibility.ts`.
-
-```typescript
-// mcp/src/tools/get-owner-portfolio.ts
-import { apiCall } from "../client/api.js";
-
-interface GetOwnerPortfolioArgs {
-  owner_name: string;
-  state?: string;
-  include_related_entities?: boolean;
-}
-
-export async function getOwnerPortfolio(args: GetOwnerPortfolioArgs) {
-  try {
-    const response = await apiCall<{
-      owner: string;
-      property_count: number;
-      properties: unknown[];
-      related_entities: string[];
-    }>("/v1/analytics/owner-portfolio", {
-      params: {
-        owner_name: args.owner_name,
-        state: args.state,
-        include_related: args.include_related_entities ? "true" : "false",
-      },
-    });
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(response, null, 2),
-        },
-      ],
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            error: error instanceof Error ? error.message : "Unknown error",
-          }),
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-
-// mcp/src/tools/estimate-value.ts
-export async function estimateValue(args: {
-  property_id?: string;
-  address?: string;
-  adjustments?: {
-    condition?: string;
-    recent_renovations?: boolean;
-    renovation_value?: number;
-  };
-}) {
-  // Similar pattern - lookup property, call valuation endpoint
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify({
-          message: "Valuation estimate functionality",
-          args,
-        }),
-      },
-    ],
-  };
-}
-
-// mcp/src/tools/check-development-feasibility.ts
-export async function checkDevelopmentFeasibility(args: {
-  property_id: string;
-  proposed_use?: string;
-}) {
-  // Get property zoning data and calculate max buildable
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify({
-          message: "Development feasibility check",
-          args,
-        }),
-      },
-    ],
-  };
 }
 ```
 
 ---
 
+### Story 9: JSON-LD Structured Data
+**File:** `api/app/middleware/jsonld.py`
+
+Add JSON-LD `<script type="application/ld+json">` to HTML responses:
+- Organization schema for ParcelData.ai
+- WebAPI schema describing the API
+- DataCatalog schema for available datasets
+
+---
+
+### Story 10: Documentation README
+**Files:** `README.md`, `docs/QUICKSTART.md`, `docs/API_REFERENCE.md`
+
+Root README:
+- What is ParcelData
+- Quick start (3 lines: install, init, query)
+- Link to full docs
+- MIT license badge
+- Status badges
+
+QUICKSTART.md:
+- Install SDK: `pip install parceldata`
+- Get API key
+- First query example
+- MCP setup example
+
+API_REFERENCE.md:
+- All endpoints with curl examples
+- Response format documentation
+- Rate limits and quotas
+- Error codes
+
+---
+
 ## Acceptance Criteria
-- MCP server starts and connects via stdio
-- All 9 tools registered and callable
-- Tools make proper API calls to ParcelData backend
-- Error handling returns structured error responses
-- TypeScript compiles without errors
-- Tests pass for all tools
-- Package builds and can be published to npm
+- [ ] `pip install -e sdk/` works
+- [ ] All SDK tests pass
+- [ ] `/llms.txt` returns valid agent-readable text
+- [ ] `/.well-known/ai-plugin.json` returns valid plugin manifest
+- [ ] OpenAPI spec is complete with examples
+- [ ] README has working quick start

@@ -1,17 +1,17 @@
 {
-  "id": "P10-06",
-  "title": "MCP Server",
+  "id": "P10-07",
+  "title": "Python SDK & Documentation",
   "branchName": "main",
   "stories": [
-    {"id": "S1", "title": "MCP Server Entry Point", "passes": true},
-    {"id": "S2", "title": "Tool Definitions", "passes": true},
-    {"id": "S3", "title": "API Client", "passes": true},
-    {"id": "S4", "title": "Property Lookup Tool", "passes": true},
-    {"id": "S5", "title": "Property Search Tool", "passes": true},
-    {"id": "S6", "title": "Get Comparables Tool", "passes": true},
-    {"id": "S7", "title": "Get Market Trends Tool", "passes": true},
-    {"id": "S8", "title": "Check Zoning Tool", "passes": true},
-    {"id": "S9", "title": "Get Permits Tool", "passes": true},
-    {"id": "S10", "title": "Remaining Tools (Owner Portfolio, Estimate Value, Development Feasibility)", "passes": true}
+    {"id": "S1", "title": "Python SDK Package Structure", "passes": false},
+    {"id": "S2", "title": "ParcelDataClient Implementation", "passes": false},
+    {"id": "S3", "title": "SDK Response Models", "passes": false},
+    {"id": "S4", "title": "SDK Error Handling", "passes": false},
+    {"id": "S5", "title": "SDK Tests", "passes": false},
+    {"id": "S6", "title": "OpenAPI Specification", "passes": false},
+    {"id": "S7", "title": "/llms.txt Endpoint", "passes": false},
+    {"id": "S8", "title": "/.well-known/ai-plugin.json", "passes": false},
+    {"id": "S9", "title": "JSON-LD Structured Data", "passes": false},
+    {"id": "S10", "title": "Documentation README", "passes": false}
   ]
 }
