@@ -2,9 +2,11 @@
 
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+# Import all models so Base.metadata knows about them
+import app.models  # noqa: F401
+from alembic import context
 from app.config import settings
 from app.database.connection import Base
 
@@ -33,6 +35,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
     )
 
     with context.begin_transaction():
@@ -49,7 +52,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection,
+            target_metadata=target_metadata,
+            include_schemas=True,
         )
 
         with context.begin_transaction():
