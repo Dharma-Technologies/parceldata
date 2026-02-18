@@ -1,17 +1,19 @@
 {
-  "id": "P10-07",
-  "title": "Python SDK & Documentation",
+  "id": "P10-08",
+  "title": "Landing Page",
   "branchName": "main",
   "stories": [
-    {"id": "S1", "title": "Python SDK Package Structure", "passes": true},
-    {"id": "S2", "title": "ParcelDataClient Implementation", "passes": true},
-    {"id": "S3", "title": "SDK Response Models", "passes": true},
-    {"id": "S4", "title": "SDK Error Handling", "passes": true},
-    {"id": "S5", "title": "SDK Tests", "passes": true},
-    {"id": "S6", "title": "OpenAPI Specification", "passes": true},
-    {"id": "S7", "title": "/llms.txt Endpoint", "passes": true},
-    {"id": "S8", "title": "/.well-known/ai-plugin.json", "passes": true},
-    {"id": "S9", "title": "JSON-LD Structured Data", "passes": true},
-    {"id": "S10", "title": "Documentation README", "passes": true}
+    {"id": "S1", "title": "Copy Base Template to Site Directory", "passes": true},
+    {"id": "S2", "title": "Brand & Navigation Replacement", "passes": true},
+    {"id": "S3", "title": "Hero Section", "passes": true},
+    {"id": "S4", "title": "Feature Cards Section", "passes": true},
+    {"id": "S5", "title": "Code Examples Section", "passes": true},
+    {"id": "S6", "title": "Pricing Section", "passes": true},
+    {"id": "S7", "title": "Data Coverage Section", "passes": true},
+    {"id": "S8", "title": "Agent Readability Section", "passes": true},
+    {"id": "S9", "title": "Footer", "passes": true},
+    {"id": "S10", "title": "/llms.txt Static File", "passes": true},
+    {"id": "S11", "title": "ai-plugin.json Static File", "passes": true},
+    {"id": "S12", "title": "Meta Tags & SEO", "passes": true}
   ]
 }

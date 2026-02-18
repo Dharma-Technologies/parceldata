@@ -35,6 +35,7 @@
 - `concurrent.futures.Future` needs type annotation: `Future[object]` for strict mypy
 - Agent-readable endpoints (/llms.txt, /.well-known/ai-plugin.json, /jsonld) must be in PUBLIC_PATHS
 - Docs URLs changed from /docs to /v1/docs and /v1/redoc — update PUBLIC_PREFIXES accordingly
+- Landing page (site/): Static HTML with Tailwind CDN, no build step. Inline SVG icons, CSS-only animations. No external JS dependencies.
 
 ---
 
@@ -307,4 +308,35 @@
   - Docs URL changed to /v1/docs and /v1/redoc — update PUBLIC_PREFIXES tuple
   - `pip install -e ".[dev]"` for SDK editable install with dev extras
   - run_sync helper: use ThreadPoolExecutor when event loop is already running (for sync wrappers in async context)
+---
+
+## 2026-02-18 - S1-S12 (P10-08 Landing Page)
+- Implemented all 12 stories for P10-08 Landing Page
+- Files created:
+  - site/index.html (S1-S9, S12: Full landing page with all sections)
+  - site/llms.txt (S10: Agent-readable plain text summary)
+  - site/.well-known/ai-plugin.json (S11: OpenAI plugin manifest)
+- Template adaptation:
+  - Copied CSS patterns from /home/numen/dharma/templates/aura-finance/
+  - Kept: Tailwind CSS CDN, Inter+Newsreader fonts, spotlight cards, shiny CTA, beam animations, grid background, dark theme
+  - Removed: UnicornStudio dependency, external images, Aura branding
+  - Added: Code syntax highlighting, tab switcher, pricing toggle, data source marquee
+- Sections implemented:
+  - Navigation: Pill nav with Docs, Pricing, GitHub, API Reference links + "Get API Key" CTA
+  - Hero: Status pill ("Open Source · MIT Licensed"), headline, subheadline, code preview
+  - Feature Cards: Property Intelligence (JSON preview), MCP Native (connection diagram), Entity Resolution (quality score bars)
+  - Code Examples: Tab-based switcher (Python, curl, TypeScript, GraphQL)
+  - Pricing: Free/$0, Pro/$49, Scale/Custom with monthly/annual toggle (-20%)
+  - Data Coverage: Stats (150M+, 50 states, 20+ sources, 13 categories) + data source marquee
+  - Agent Readability: 4 cards (/llms.txt, MCP Tools, Token-Optimized, JSON-LD)
+  - Footer: Brand, product links, legal, social icons (GitHub/X/Discord), install snippets
+  - SEO: Title, JSON-LD SoftwareApplication structured data
+- **Learnings for future iterations:**
+  - All sections fit naturally in a single HTML file with Tailwind CDN — no build step needed
+  - Spotlight card effect requires JS mousemove listener setting CSS custom properties
+  - Tab switcher: toggle hidden class + update tab-active/tab-inactive classes
+  - Pricing toggle: use separate .price-monthly/.price-annual elements toggled with JS
+  - Data source marquee: duplicate items for seamless loop, use mask-gradient-fade for edge fading
+  - SVG icons inline (Lucide-style) avoid external dependencies
+  - JSON-LD structured data in <script type="application/ld+json"> at page bottom
 ---

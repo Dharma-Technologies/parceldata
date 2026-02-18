@@ -1,0 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "ParcelData",
+  "name_for_model": "parceldata",
+  "description_for_human": "Access real estate data including property records, valuations, zoning, permits, and market analytics for any US property.",
+  "description_for_model": "Query the ParcelData API for US real estate data. Use this to look up property details by address, parcel ID, or coordinates. Search properties with filters. Get comparable sales, market trends, zoning info, permits, owner portfolios, and property valuations. All responses include data quality scores.",
+  "auth": {
+    "type": "service_http",
+    "authorization_type": "bearer",
+    "verification_tokens": {}
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://api.parceldata.ai/v1/openapi.json"
+  },
+  "logo_url": "https://parceldata.ai/logo.png",
+  "contact_email": "support@parceldata.ai",
+  "legal_info_url": "https://parceldata.ai/terms"
+}

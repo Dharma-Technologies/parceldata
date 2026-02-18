@@ -1,0 +1,49 @@
+# ParcelData.ai
+> Clean, universal real estate data for AI agents.
+
+## What is ParcelData?
+ParcelData is an open source real estate data platform that provides
+normalized property data via REST API, GraphQL, and MCP server.
+It aggregates data from 20+ sources, performs entity resolution,
+and delivers quality-scored results optimized for AI consumption.
+
+## Quick Start
+pip install parceldata
+
+## API
+Base URL: https://api.parceldata.ai/v1
+Auth: API key via X-API-Key header or Authorization: Bearer header
+
+## Endpoints
+- GET /v1/properties/{parcel_id} — Lookup by parcel ID
+- GET /v1/properties/address — Lookup by address
+- GET /v1/properties/coordinates — Lookup by lat/lng
+- POST /v1/properties/search — Search with filters
+- POST /v1/properties/batch — Batch lookup (up to 100)
+- GET /v1/analytics/comparables — Comparable sales
+- GET /v1/analytics/market-trends — Market statistics
+
+## Response Tiers
+- ?detail=micro — 500-1000 tokens (ID, price, basic stats)
+- ?detail=standard — 2000-4000 tokens (full property details)
+- ?detail=extended — 8000-16000 tokens (property + market)
+- ?detail=full — 32000+ tokens (everything + documents)
+
+## MCP
+Server: mcp://api.parceldata.ai/v1
+Tools: property_lookup, property_search, get_comparables,
+get_market_trends, check_zoning, get_permits,
+get_owner_portfolio, estimate_value,
+check_development_feasibility
+
+## Data Quality
+Every response includes a data_quality object with score (0-1),
+component scores, freshness_hours, sources, and confidence level.
+
+## Links
+- API Docs: https://api.parceldata.ai/v1/docs
+- API Reference: https://api.parceldata.ai/v1/redoc
+- OpenAPI Spec: https://api.parceldata.ai/v1/openapi.json
+- GitHub: https://github.com/Dharma-Technologies/parceldata
+- Python SDK: pip install parceldata
+- MCP Server: npm install @parceldata/mcp
