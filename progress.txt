@@ -22,6 +22,10 @@
 - Alembic `env.py` must `import app.models` to register models with `Base.metadata`
 - Exclude `alembic/` from both ruff and mypy (auto-generated migration style)
 - geoalchemy2/pgvector mypy ignores are handled in pyproject.toml `[[tool.mypy.overrides]]`
+- Stripe library has typed stubs — no `type: ignore[import-untyped]` needed but some methods need `type: ignore[attr-defined]` or `type: ignore[no-untyped-call]`
+- When using Redis `hset` with strict mypy, annotate mapping as `dict[str | bytes, bytes | float | int | str]`
+- Public endpoints (signup, webhooks) must be added to `PUBLIC_PATHS` or `PUBLIC_PREFIXES` in auth middleware
+- PLC0415: ruff requires all imports at module top level — don't use local imports inside methods
 
 ---
 
@@ -130,5 +134,55 @@
   - Route order matters in FastAPI: /{property_id} must come after /search, /batch, /address/lookup, /coordinates/lookup
   - Integration tests without DB: accept both expected status and 500 (connection refused)
   - `SearchResponse.data_quality` is aggregate of individual result scores
+---
+
+## 2026-02-18 - S1-S12 (P10-04 Auth & Billing)
+- Implemented all 12 stories for P10-04 Auth & Billing
+- Files created:
+  - api/app/models/api_key.py (S1: Account + APIKey + TierEnum models)
+  - api/app/models/usage.py (S2: UsageRecord + UsageEvent models)
+  - api/app/services/auth_service.py (S3: key creation, validation, revocation, Redis caching)
+  - api/app/services/usage_service.py (S4: usage recording, daily aggregation, quota checks)
+  - api/app/services/stripe_service.py (S7: Stripe customer, checkout, portal, subscription mgmt)
+  - api/app/routes/account.py (S6: usage summary, billing info, upgrade endpoints)
+  - api/app/routes/webhooks.py (S8: Stripe webhook handler with event dispatching)
+  - api/app/middleware/usage_tracking.py (S9: automatic usage metering for /v1/ requests)
+  - api/alembic/versions/002_auth_and_usage_tables.py (S12: migration for 4 new tables)
+  - api/tests/test_auth_models.py (25 tests for S1-S2)
+  - api/tests/test_auth_service.py (13 tests for S3)
+  - api/tests/test_usage_service.py (15 tests for S4)
+  - api/tests/test_auth_routes.py (9 tests for S5)
+  - api/tests/test_account_routes.py (10 tests for S6)
+  - api/tests/test_stripe_service.py (14 tests for S7 + S11)
+  - api/tests/test_webhooks.py (4 tests for S8)
+  - api/tests/test_usage_tracking.py (4 tests for S9)
+  - api/tests/test_rate_limit_enhanced.py (9 tests for S10)
+- Files modified:
+  - api/app/models/__init__.py (added Account, APIKey, TierEnum, UsageEvent, UsageRecord exports)
+  - api/app/routes/auth.py (S5: rewrote with signup, create key, list keys, revoke key)
+  - api/app/middleware/authentication.py (S5: added /v1/auth/signup and /webhooks to public paths)
+  - api/app/middleware/rate_limit.py (S10: added monthly quota checks, X-Usage-* headers)
+  - api/app/middleware/__init__.py (S9: export UsageTrackingMiddleware)
+  - api/app/main.py (S6/S8/S9: registered account_router, webhooks_router, UsageTrackingMiddleware)
+  - api/app/config.py (S11: added 5 Stripe settings)
+  - api/requirements.txt (S7: added stripe>=7.0.0)
+  - api/pyproject.toml (S7: added stripe.* to mypy overrides)
+  - api/tests/test_migration.py (S12: updated for auth tables + 2 new tests)
+- Key patterns:
+  - API key hashed with SHA-256 before storage; raw key shown once at creation
+  - Redis cache for key validation with DB fallback
+  - Usage tracking: Redis counter for fast quota checks, DB for durable aggregates
+  - Four tiers: free (3K/mo), pro (50K/mo), business (500K/mo), enterprise (10M/mo)
+  - Stripe webhook handler with event routing (checkout, subscription, payment)
+  - All new middleware handles Redis/DB unavailability gracefully
+- 234 total tests passing (105 new)
+- **Learnings for future iterations:**
+  - Stripe typed stubs are strict — `Webhook.construct_event` needs `type: ignore[no-untyped-call]`
+  - `SubscriptionItem.create_usage_record` needs `type: ignore[attr-defined]` in current stripe version
+  - Redis hset mapping type: annotate as `dict[str | bytes, bytes | float | int | str]` for strict mypy
+  - PLC0415 ruff rule: all imports must be at top of file, not inside methods
+  - Middleware stack order matters: UsageTracking innermost → RateLimit → Auth → ErrorHandler outermost
+  - /v1/auth/signup must be in PUBLIC_PATHS for unauthenticated access
+  - /webhooks must be in PUBLIC_PREFIXES for Stripe callbacks
 ---
 
