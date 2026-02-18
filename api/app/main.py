@@ -29,12 +29,41 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="ParcelData API",
-    description="Real estate data for AI agents",
+    description="""
+ParcelData API provides clean, normalized real estate data for AI agents.
+
+## Authentication
+All endpoints require an API key via `Authorization: Bearer <key>`
+or `X-API-Key: <key>`.
+
+## Response Detail Levels
+- **micro**: Minimal response (~500 tokens)
+- **standard**: Full property details (~2000 tokens)
+- **extended**: Property + market context (~8000 tokens)
+- **full**: Everything + documents (~32000 tokens)
+
+## Data Quality
+Every response includes a `data_quality` object with confidence scores.
+    """,
     version="0.1.0",
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
     openapi_url="/openapi.json",
+    openapi_tags=[
+        {
+            "name": "Properties",
+            "description": "Property lookup and search",
+        },
+        {
+            "name": "Analytics",
+            "description": "Comparables and market trends",
+        },
+        {
+            "name": "Health",
+            "description": "API health and version",
+        },
+    ],
 )
 
 # --- Middleware (applied bottom-up: error → auth → rate limit) ---
