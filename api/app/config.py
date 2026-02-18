@@ -39,6 +39,13 @@ class Settings(BaseSettings):
     rate_limit_business_per_second: int = 50
     rate_limit_business_per_day: int = 500000
 
+    # Stripe Billing
+    stripe_secret_key: str = ""
+    stripe_publishable_key: str = ""
+    stripe_webhook_secret: str = ""
+    stripe_pro_price_id: str = ""
+    stripe_business_price_id: str = ""
+
     # External Services (placeholders)
     regrid_api_key: str = ""
     attom_api_key: str = ""

@@ -27,5 +27,6 @@ module = [
     "geopy.*",
     "slowapi.*",
     "strawberry.*",
+    "stripe.*",
 ]
 ignore_missing_imports = true

@@ -43,6 +43,9 @@ geopy>=2.4.1
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 
+# Billing
+stripe>=7.0.0
+
 # Rate Limiting
 slowapi>=0.1.9
 
