@@ -7,7 +7,7 @@
     {"id": "S2", "title": "Regrid Adapter", "passes": true},
     {"id": "S3", "title": "ATTOM Adapter", "passes": true},
     {"id": "S4", "title": "Census Adapter", "passes": true},
-    {"id": "S5", "title": "FEMA Adapter", "passes": false},
+    {"id": "S5", "title": "FEMA Adapter", "passes": true},
     {"id": "S6", "title": "Address Normalization Service", "passes": false},
     {"id": "S7", "title": "Geocoding Service", "passes": false},
     {"id": "S8", "title": "Entity Resolution Pipeline", "passes": false},
