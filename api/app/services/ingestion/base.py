@@ -63,7 +63,7 @@ class ProviderAdapter(ABC):
         """Fetch multiple properties by ID."""
 
     @abstractmethod
-    async def stream_region(
+    def stream_region(
         self,
         state: str,
         county: str | None = None,
