@@ -88,6 +88,8 @@ app.add_middleware(
         "X-RateLimit-Limit",
         "X-RateLimit-Remaining",
         "X-RateLimit-Reset",
+        "X-Usage-Limit",
+        "X-Usage-Remaining",
     ],
 )
 
