@@ -10,7 +10,7 @@
     {"id": "S5", "title": "FEMA Adapter", "passes": true},
     {"id": "S6", "title": "Address Normalization Service", "passes": true},
     {"id": "S7", "title": "Geocoding Service", "passes": true},
-    {"id": "S8", "title": "Entity Resolution Pipeline", "passes": false},
+    {"id": "S8", "title": "Entity Resolution Pipeline", "passes": true},
     {"id": "S9", "title": "Data Quality Scoring Service", "passes": false},
     {"id": "S10", "title": "Data Ingestion Pipeline", "passes": false},
     {"id": "S11", "title": "Batch Import CLI", "passes": false},
