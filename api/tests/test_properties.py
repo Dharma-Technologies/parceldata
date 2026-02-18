@@ -134,8 +134,8 @@ async def test_openapi_spec(client: AsyncClient) -> None:
     response = await client.get("/openapi.json")
     assert response.status_code == 200
     data = response.json()
-    assert data["info"]["title"] == "ParcelData API"
-    assert data["info"]["version"] == "0.1.0"
+    assert data["info"]["title"] == "ParcelData.ai API"
+    assert data["info"]["version"] == "1.0.0"
     assert "paths" in data
     # Verify key endpoints exist
     assert "/v1/properties/search" in data["paths"]

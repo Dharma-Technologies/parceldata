@@ -15,9 +15,19 @@ PUBLIC_PATHS: set[str] = {
     "/redoc",
     "/openapi.json",
     "/v1/auth/signup",
+    "/llms.txt",
+    "/jsonld",
+    "/.well-known/ai-plugin.json",
 }
 
-PUBLIC_PREFIXES: tuple[str, ...] = ("/docs", "/redoc", "/webhooks")
+PUBLIC_PREFIXES: tuple[str, ...] = (
+    "/docs",
+    "/redoc",
+    "/webhooks",
+    "/v1/docs",
+    "/v1/redoc",
+    "/.well-known",
+)
 
 
 class AuthenticationMiddleware(BaseHTTPMiddleware):

@@ -17,7 +17,9 @@ from app.middleware import (
     RateLimitMiddleware,
     UsageTrackingMiddleware,
 )
+from app.openapi_config import OPENAPI_TAGS
 from app.routes.account import router as account_router
+from app.routes.agent_readable import router as agent_readable_router
 from app.routes.analytics import router as analytics_router
 from app.routes.auth import router as auth_router
 from app.routes.health import router as health_router
@@ -34,41 +36,56 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="ParcelData API",
+    title="ParcelData.ai API",
     description="""
-ParcelData API provides clean, normalized real estate data for AI agents.
+**Clean, universal real estate data for AI agents.**
+
+ParcelData provides structured property data via REST API, GraphQL, and MCP server.
+Every response includes a `data_quality` object with confidence scores.
 
 ## Authentication
 All endpoints require an API key via `Authorization: Bearer <key>`
-or `X-API-Key: <key>`.
+or `X-API-Key: <key>` header.
+
+Sign up at `POST /v1/auth/signup` to get your API key.
 
 ## Response Detail Levels
-- **micro**: Minimal response (~500 tokens)
-- **standard**: Full property details (~2000 tokens)
-- **extended**: Property + market context (~8000 tokens)
-- **full**: Everything + documents (~32000 tokens)
+Control response size with `?detail=` parameter:
+- **micro** (~500-1000 tokens): ID, price, basic stats only
+- **standard** (~2000-4000 tokens): Full property details
+- **extended** (~8000-16000 tokens): Property + market context
+- **full** (~32000+ tokens): Everything + documents
 
-## Data Quality
-Every response includes a `data_quality` object with confidence scores.
+## Rate Limits
+- **Free**: 3,000 requests/month
+- **Pro**: 50,000 requests/month
+- **Business**: 500,000 requests/month
+- **Enterprise**: 10,000,000 requests/month
+
+## MCP Server
+Connect AI agents via MCP at `mcp://api.parceldata.ai/v1`.
+Tools: `property_lookup`, `property_search`, `get_comparables`,
+`get_market_trends`, `check_zoning`, `get_permits`,
+`get_owner_portfolio`, `estimate_value`, `check_development_feasibility`.
     """,
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url="/v1/docs",
+    redoc_url="/v1/redoc",
     openapi_url="/openapi.json",
-    openapi_tags=[
-        {
-            "name": "Properties",
-            "description": "Property lookup and search",
-        },
-        {
-            "name": "Analytics",
-            "description": "Comparables and market trends",
-        },
-        {
-            "name": "Health",
-            "description": "API health and version",
-        },
+    openapi_tags=OPENAPI_TAGS,
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    contact={
+        "name": "ParcelData.ai Support",
+        "url": "https://parceldata.ai",
+        "email": "hello@dharma.tech",
+    },
+    servers=[
+        {"url": "https://api.parceldata.ai", "description": "Production"},
+        {"url": "http://localhost:8000", "description": "Local development"},
     ],
 )
 
@@ -100,6 +117,7 @@ app.include_router(analytics_router)
 app.include_router(auth_router)
 app.include_router(account_router)
 app.include_router(webhooks_router)
+app.include_router(agent_readable_router)
 app.include_router(graphql_router, prefix="/graphql")
 
 _DATA_QUALITY_NONE = {
