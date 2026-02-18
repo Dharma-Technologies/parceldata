@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.schemas.property import PropertyResponse
@@ -44,3 +46,21 @@ class SearchResponse(BaseModel):
     limit: int
     offset: int
     has_more: bool
+
+
+class BatchLookupRequest(BaseModel):
+    """Batch property lookup request."""
+
+    property_ids: list[str] = Field(..., max_length=100)
+    detail: Literal["micro", "standard", "extended", "full"] = (
+        "standard"
+    )
+
+
+class BatchLookupResponse(BaseModel):
+    """Batch lookup results."""
+
+    results: list[PropertyResponse | None]
+    found: int
+    not_found: int
+    errors: list[str]

@@ -9,7 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
 from app.schemas.property import PropertyMicroResponse, PropertyResponse
-from app.schemas.search import SearchRequest, SearchResponse
+from app.schemas.search import (
+    BatchLookupRequest,
+    BatchLookupResponse,
+    SearchRequest,
+    SearchResponse,
+)
 from app.services.property_service import PropertyService
 from app.services.search_service import SearchFilters, SearchService
 
@@ -63,6 +68,47 @@ async def search_properties(
         limit=request.limit,
         offset=request.offset,
         has_more=(request.offset + len(full_results)) < total,
+    )
+
+
+@router.post("/batch", response_model=BatchLookupResponse)
+async def batch_lookup(
+    request: BatchLookupRequest,
+    db: AsyncSession = Depends(get_db),
+) -> BatchLookupResponse:
+    """Batch property lookup by IDs.
+
+    Returns properties in the same order as requested IDs.
+    Maximum 100 properties per request.
+    """
+    service = PropertyService(db)
+    results: list[PropertyResponse | None] = []
+    errors: list[str] = []
+    found = 0
+    not_found = 0
+
+    for prop_id in request.property_ids:
+        try:
+            prop = await service.get_by_id(prop_id)
+            if prop:
+                resp = service.to_response(prop, request.detail)
+                if isinstance(resp, PropertyResponse):
+                    results.append(resp)
+                else:
+                    results.append(None)
+                found += 1
+            else:
+                results.append(None)
+                not_found += 1
+        except Exception as e:
+            results.append(None)
+            errors.append(f"{prop_id}: {e!s}")
+
+    return BatchLookupResponse(
+        results=results,
+        found=found,
+        not_found=not_found,
+        errors=errors,
     )
 
 
