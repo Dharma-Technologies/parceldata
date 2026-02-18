@@ -186,3 +186,46 @@
   - /webhooks must be in PUBLIC_PREFIXES for Stripe callbacks
 ---
 
+## 2026-02-18 - S1-S12 (P10-05 Data Pipeline)
+- Implemented all 12 stories for P10-05 Data Pipeline
+- Files created:
+  - api/app/services/ingestion/__init__.py (package init)
+  - api/app/services/ingestion/base.py (S1: ProviderAdapter ABC + RawPropertyRecord)
+  - api/app/services/ingestion/providers/__init__.py (S12: package exports for all 4 adapters)
+  - api/app/services/ingestion/providers/regrid.py (S2: Regrid parcel data adapter)
+  - api/app/services/ingestion/providers/attom.py (S3: ATTOM property data adapter)
+  - api/app/services/ingestion/providers/census.py (S4: Census ACS demographics adapter)
+  - api/app/services/ingestion/providers/fema.py (S5: FEMA flood zone adapter)
+  - api/app/services/address.py (S6: USPS address normalization with usaddress)
+  - api/app/services/geocoding.py (S7: Multi-provider geocoding with Census/Nominatim fallback)
+  - api/app/services/entity_resolution.py (S8: Cross-source property deduplication)
+  - api/app/services/quality.py (S9: Data quality scoring with 6 components)
+  - api/app/services/ingestion/pipeline.py (S10: ETL pipeline with ProcessedRecord)
+  - api/app/cli/__init__.py (S11: CLI package init)
+  - api/app/cli/import_data.py (S11: Batch import CLI with PROVIDERS dict)
+  - api/tests/test_ingestion_base.py (15 tests)
+  - api/tests/test_regrid_adapter.py (15 tests)
+  - api/tests/test_attom_adapter.py (13 tests)
+  - api/tests/test_census_adapter.py (13 tests)
+  - api/tests/test_fema_adapter.py (12 tests)
+  - api/tests/test_address_service.py (18 tests)
+  - api/tests/test_geocoding_service.py (13 tests)
+  - api/tests/test_entity_resolution.py (24 tests)
+  - api/tests/test_quality_service.py (33 tests)
+  - api/tests/test_ingestion_pipeline.py (16 tests)
+  - api/tests/test_import_cli.py (12 tests)
+  - api/tests/test_provider_package.py (21 tests)
+- Files modified:
+  - api/pyproject.toml (added PLR0911 to ruff ignores, jellyfish.* to mypy overrides)
+  - api/requirements.txt (added jellyfish>=1.0.0)
+- 439 total tests passing (205 new)
+- **Learnings for future iterations:**
+  - Use `collections.abc.AsyncIterator` not `typing.AsyncIterator` — ruff UP035 rule
+  - Abstract base `stream_region` must be `def` not `async def` — subclass async generators return `AsyncIterator` directly
+  - httpx `response.json()` is sync — use `MagicMock` for response, `AsyncMock` for `client.get`
+  - `zip()` needs `strict=` parameter — ruff B905 rule, use `strict=False`
+  - When testing code that looks up from a module-level dict (e.g., `PROVIDERS`), use `patch.dict()` not `patch()` on the class
+  - `jellyfish` library for Jaro-Winkler similarity — needs mypy override
+  - Data quality scoring: empty data gets ~0.62 score (accuracy=0.8 default, consistency=0.85 default)
+  - Float arithmetic: 0.2+0.3+0.2+0.2+0.1 != 1.0 exactly — use `pytest.approx()`
+---

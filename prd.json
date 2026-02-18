@@ -12,8 +12,8 @@
     {"id": "S7", "title": "Geocoding Service", "passes": true},
     {"id": "S8", "title": "Entity Resolution Pipeline", "passes": true},
     {"id": "S9", "title": "Data Quality Scoring Service", "passes": true},
-    {"id": "S10", "title": "Data Ingestion Pipeline", "passes": false},
-    {"id": "S11", "title": "Batch Import CLI", "passes": false},
-    {"id": "S12", "title": "Provider Adapter Package", "passes": false}
+    {"id": "S10", "title": "Data Ingestion Pipeline", "passes": true},
+    {"id": "S11", "title": "Batch Import CLI", "passes": true},
+    {"id": "S12", "title": "Provider Adapter Package", "passes": true}
   ]
 }
