@@ -1,19 +1,19 @@
 {
-  "id": "P10-04",
-  "title": "Auth & Billing",
+  "id": "P10-05",
+  "title": "Data Pipeline",
   "branchName": "main",
   "stories": [
-    {"id": "S1", "title": "API Key Model", "passes": true},
-    {"id": "S2", "title": "Usage Record Model", "passes": true},
-    {"id": "S3", "title": "API Key Service", "passes": true},
-    {"id": "S4", "title": "Usage Tracking Service", "passes": true},
-    {"id": "S5", "title": "Authentication Routes", "passes": true},
-    {"id": "S6", "title": "Account Routes", "passes": true},
-    {"id": "S7", "title": "Stripe Integration", "passes": true},
-    {"id": "S8", "title": "Stripe Webhook Handler", "passes": true},
-    {"id": "S9", "title": "Usage Tracking Middleware", "passes": true},
-    {"id": "S10", "title": "Enhanced Rate Limiting", "passes": true},
-    {"id": "S11", "title": "Add Stripe Config", "passes": true},
-    {"id": "S12", "title": "Alembic Migration for Auth Tables", "passes": true}
+    {"id": "S1", "title": "Provider Adapter Base Class", "passes": false},
+    {"id": "S2", "title": "Regrid Adapter", "passes": false},
+    {"id": "S3", "title": "ATTOM Adapter", "passes": false},
+    {"id": "S4", "title": "Census Adapter", "passes": false},
+    {"id": "S5", "title": "FEMA Adapter", "passes": false},
+    {"id": "S6", "title": "Address Normalization Service", "passes": false},
+    {"id": "S7", "title": "Geocoding Service", "passes": false},
+    {"id": "S8", "title": "Entity Resolution Pipeline", "passes": false},
+    {"id": "S9", "title": "Data Quality Scoring Service", "passes": false},
+    {"id": "S10", "title": "Data Ingestion Pipeline", "passes": false},
+    {"id": "S11", "title": "Batch Import CLI", "passes": false},
+    {"id": "S12", "title": "Provider Adapter Package", "passes": false}
   ]
 }
