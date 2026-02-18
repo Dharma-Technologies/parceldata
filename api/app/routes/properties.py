@@ -1,4 +1,4 @@
-"""Property lookup endpoints."""
+"""Property lookup and search endpoints."""
 
 from __future__ import annotations
 
@@ -9,36 +9,61 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.connection import get_db
 from app.schemas.property import PropertyMicroResponse, PropertyResponse
+from app.schemas.search import SearchRequest, SearchResponse
 from app.services.property_service import PropertyService
+from app.services.search_service import SearchFilters, SearchService
 
 router = APIRouter(prefix="/v1/properties", tags=["Properties"])
 
 DetailLevel = Literal["micro", "standard", "extended", "full"]
 
 
-@router.get(
-    "/{property_id}",
-    response_model=PropertyResponse | PropertyMicroResponse,
-)
-async def get_property_by_id(
-    property_id: str,
+@router.post("/search", response_model=SearchResponse)
+async def search_properties(
+    request: SearchRequest,
     detail: DetailLevel = "standard",
     db: AsyncSession = Depends(get_db),
-) -> PropertyResponse | PropertyMicroResponse:
-    """Get property by Dharma Parcel ID.
+) -> SearchResponse:
+    """Search for properties matching criteria.
 
-    Args:
-        property_id: Dharma Parcel ID (e.g., TX-TRAVIS-0234567).
-        detail: Response detail level (micro, standard, extended, full).
+    Supports filtering by location, property characteristics,
+    price, listing status, and zoning.
     """
-    service = PropertyService(db)
-    prop = await service.get_by_id(property_id)
-    if not prop:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Property not found: {property_id}",
-        )
-    return service.to_response(prop, detail)
+    filters = SearchFilters(
+        **request.model_dump(exclude={"limit", "offset", "sort"}),
+    )
+
+    sort_parts = request.sort.split(":")
+    sort_field = sort_parts[0]
+    sort_order = sort_parts[1] if len(sort_parts) > 1 else "asc"
+
+    search_service = SearchService(db)
+    properties, total = await search_service.search(
+        filters=filters,
+        limit=request.limit,
+        offset=request.offset,
+        sort_field=sort_field,
+        sort_order=sort_order,
+    )
+
+    prop_service = PropertyService(db)
+    results = [
+        prop_service.to_response(p, detail)
+        for p in properties
+    ]
+    # Ensure only PropertyResponse in results (search always standard+)
+    full_results: list[PropertyResponse] = []
+    for r in results:
+        if isinstance(r, PropertyResponse):
+            full_results.append(r)
+
+    return SearchResponse(
+        results=full_results,
+        total=total,
+        limit=request.limit,
+        offset=request.offset,
+        has_more=(request.offset + len(full_results)) < total,
+    )
 
 
 @router.get(
@@ -90,5 +115,30 @@ async def get_property_by_coordinates(
         raise HTTPException(
             status_code=404,
             detail="No property found at the provided coordinates",
+        )
+    return service.to_response(prop, detail)
+
+
+@router.get(
+    "/{property_id}",
+    response_model=PropertyResponse | PropertyMicroResponse,
+)
+async def get_property_by_id(
+    property_id: str,
+    detail: DetailLevel = "standard",
+    db: AsyncSession = Depends(get_db),
+) -> PropertyResponse | PropertyMicroResponse:
+    """Get property by Dharma Parcel ID.
+
+    Args:
+        property_id: Dharma Parcel ID (e.g., TX-TRAVIS-0234567).
+        detail: Response detail level (micro, standard, extended, full).
+    """
+    service = PropertyService(db)
+    prop = await service.get_by_id(property_id)
+    if not prop:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Property not found: {property_id}",
         )
     return service.to_response(prop, detail)
