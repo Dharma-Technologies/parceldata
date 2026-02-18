@@ -15,6 +15,7 @@ from app.middleware import (
     AuthenticationMiddleware,
     ErrorHandlerMiddleware,
     RateLimitMiddleware,
+    UsageTrackingMiddleware,
 )
 from app.routes.account import router as account_router
 from app.routes.analytics import router as analytics_router
@@ -71,7 +72,8 @@ Every response includes a `data_quality` object with confidence scores.
     ],
 )
 
-# --- Middleware (applied bottom-up: error → auth → rate limit) ---
+# --- Middleware (applied bottom-up: error → auth → rate limit → usage) ---
+app.add_middleware(UsageTrackingMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(AuthenticationMiddleware)
 app.add_middleware(ErrorHandlerMiddleware)
