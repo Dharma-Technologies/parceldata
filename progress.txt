@@ -8,6 +8,48 @@
 - File naming: snake_case.py for Python
 - Type annotations required on all functions
 - Google-style docstrings
+- Runtime is Python 3.10 (not 3.12) — use `from __future__ import annotations` for newer type syntax
+- Redis class is not generic at runtime in this redis version — use `# type: ignore[type-arg]` or `from __future__ import annotations`
+- `postal` library requires libpostal C library — commented out in requirements.txt
+- Middleware/auth/rate-limit must handle Redis unavailability gracefully (try/except) for tests and degraded mode
+- Lifecycle startup should warn (not crash) when DB/Redis unavailable
+- ruff config ignores B008 (Depends in defaults) and PLR2004 (magic numbers in tests)
+- pyproject.toml in api/ configures ruff, mypy, and pytest
+- Run quality checks from api/ directory: `python3 -m ruff check app/ tests/`, `python3 -m mypy app/`, `python3 -m pytest tests/ -v`
 
+---
+
+## 2026-02-18 - S1-S14 (API Foundation)
+- Implemented all 14 code stories for P10-01 API Foundation
+- Files created:
+  - api/app/config.py (S2: Pydantic Settings)
+  - api/app/logging_config.py (S9: structlog setup)
+  - api/app/database/__init__.py, connection.py, redis.py (S3, S4: DB + Redis)
+  - api/app/lifecycle.py (S12: startup/shutdown)
+  - api/app/middleware/__init__.py, error_handler.py, authentication.py, rate_limit.py (S6-S8, S13)
+  - api/app/routes/__init__.py, health.py, properties.py, analytics.py, auth.py (S5, S14)
+  - api/app/main.py (S1, S10: FastAPI app + CORS)
+  - api/alembic/ (S11: migration framework)
+  - api/pyproject.toml (tool config)
+  - api/tests/conftest.py, test_health.py (4 tests)
+- Files modified:
+  - api/requirements.txt (commented out postal)
+- **Learnings for future iterations:**
+  - Python runtime is 3.10, not 3.12 — use `from __future__ import annotations` for union syntax
+  - Redis[Any] type annotation crashes at runtime — need `from __future__ import annotations` or `# type: ignore`
+  - postal lib needs libpostal C headers — not available in this env
+  - Auth/rate-limit middleware must gracefully handle Redis being unavailable
+  - Lifecycle startup should warn, not crash, when services are down
+  - BaseHTTPMiddleware dispatch must accept `RequestResponseEndpoint` type for call_next
+---
+
+## 2026-02-18 - S15 (Docker Build Verification)
+- Docker image `parceldata-api` builds successfully from api/Dockerfile
+- PostgreSQL port 5432 may conflict with host postgres — use different port mapping if needed
+- docker-compose.yml `version` attribute is deprecated (warning only)
+- **Learnings for future iterations:**
+  - Docker build works with Python 3.12-slim base image
+  - Port conflicts are environment-specific; the build itself is valid
+  - Add .dockerignore to api/ to speed up builds (exclude __pycache__, .git, etc.)
 ---
 
