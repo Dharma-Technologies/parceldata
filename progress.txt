@@ -30,6 +30,11 @@
 - MCP SDK v1.26.0: `types: ["node"]` in tsconfig.json for Node.js globals (process, console, fetch)
 - MCP tool handlers accept `Record<string, unknown> | undefined` — cast to typed interface with all-optional fields
 - MCP server quality checks from mcp/ dir: `npx tsc --noEmit`, `npx eslint src/`, `npx vitest run`
+- SDK quality checks from sdk/ dir: `python3 -m ruff check parceldata/ tests/`, `python3 -m mypy parceldata/`, `python3 -m pytest tests/ -v`
+- SDK uses `pip install -e ".[dev]"` for editable install with dev dependencies
+- `concurrent.futures.Future` needs type annotation: `Future[object]` for strict mypy
+- Agent-readable endpoints (/llms.txt, /.well-known/ai-plugin.json, /jsonld) must be in PUBLIC_PATHS
+- Docs URLs changed from /docs to /v1/docs and /v1/redoc — update PUBLIC_PREFIXES accordingly
 
 ---
 
@@ -266,4 +271,40 @@
   - Use `type: "text" as const` for MCP content blocks to satisfy TypeScript literal types
   - createServer() factory function is testable without stdio transport
   - Tool handler map (`Record<string, ToolHandler>`) is cleaner than switch/case for routing
+---
+
+## 2026-02-18 - S1-S10 (P10-07 Python SDK & Documentation)
+- Implemented all 10 stories for P10-07 SDK & Documentation
+- Files created:
+  - sdk/parceldata/__init__.py (S1: package exports with version)
+  - sdk/parceldata/client.py (S2: ParcelDataClient with async/sync methods, retry, rate limit handling)
+  - sdk/parceldata/models.py (S3: 20 Pydantic models matching API responses)
+  - sdk/parceldata/exceptions.py (S4: 6 exception classes with status codes)
+  - sdk/parceldata/types.py (S1: type definitions — DetailTier, SortOrder, Confidence)
+  - sdk/parceldata/utils.py (S1: run_sync, build_query_params, retry_delays)
+  - sdk/pyproject.toml (S1: ruff, mypy, pytest config for SDK)
+  - sdk/LICENSE (S1: MIT license)
+  - sdk/tests/conftest.py (S5: fixtures with sample API response data)
+  - sdk/tests/test_client.py (S5: 10 tests — init, lookup, search, batch, errors, retry, context manager)
+  - sdk/tests/test_models.py (S5: 10 tests — all model types, serialization)
+  - api/app/openapi_config.py (S6: enhanced OpenAPI tags, response examples)
+  - api/app/routes/agent_readable.py (S7/S8: /llms.txt, /.well-known/ai-plugin.json, /jsonld endpoints)
+  - api/app/middleware/jsonld.py (S9: Organization, WebAPI, DataCatalog JSON-LD schemas)
+  - api/tests/test_agent_readable.py (S7/S8: 6 tests for agent endpoints)
+  - api/tests/test_jsonld.py (S9: 7 tests for JSON-LD schemas and endpoint)
+  - docs/QUICKSTART.md (S10: install, auth, lookup, search, batch, MCP setup)
+  - docs/API_REFERENCE.md (S10: all endpoints with curl examples, error codes, rate limits)
+- Files modified:
+  - api/app/main.py (S6: enhanced OpenAPI config with tags, license, contact, servers)
+  - api/app/middleware/authentication.py (S7/S8/S9: added agent-readable paths to PUBLIC_PATHS)
+  - api/tests/test_properties.py (S6: updated OpenAPI title/version assertions)
+  - README.md (S10: updated quick start with SDK usage, MCP config, architecture)
+- 452 API tests + 20 SDK tests + 52 MCP tests = 524 total tests passing
+- **Learnings for future iterations:**
+  - SDK `concurrent.futures.Future` needs explicit type annotation for strict mypy
+  - ruff checks long lines even inside multi-line strings (LLMS_TXT) — keep under 88 chars
+  - Agent-readable paths (/llms.txt, /.well-known/*, /jsonld) must be in PUBLIC_PATHS for unauthenticated access
+  - Docs URL changed to /v1/docs and /v1/redoc — update PUBLIC_PREFIXES tuple
+  - `pip install -e ".[dev]"` for SDK editable install with dev extras
+  - run_sync helper: use ThreadPoolExecutor when event loop is already running (for sync wrappers in async context)
 ---

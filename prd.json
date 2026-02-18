@@ -8,10 +8,10 @@
     {"id": "S3", "title": "SDK Response Models", "passes": true},
     {"id": "S4", "title": "SDK Error Handling", "passes": true},
     {"id": "S5", "title": "SDK Tests", "passes": true},
-    {"id": "S6", "title": "OpenAPI Specification", "passes": false},
-    {"id": "S7", "title": "/llms.txt Endpoint", "passes": false},
-    {"id": "S8", "title": "/.well-known/ai-plugin.json", "passes": false},
-    {"id": "S9", "title": "JSON-LD Structured Data", "passes": false},
-    {"id": "S10", "title": "Documentation README", "passes": false}
+    {"id": "S6", "title": "OpenAPI Specification", "passes": true},
+    {"id": "S7", "title": "/llms.txt Endpoint", "passes": true},
+    {"id": "S8", "title": "/.well-known/ai-plugin.json", "passes": true},
+    {"id": "S9", "title": "JSON-LD Structured Data", "passes": true},
+    {"id": "S10", "title": "Documentation README", "passes": true}
   ]
 }
