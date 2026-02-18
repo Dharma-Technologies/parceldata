@@ -3,15 +3,15 @@
   "title": "MCP Server",
   "branchName": "main",
   "stories": [
-    {"id": "S1", "title": "MCP Server Entry Point", "passes": false},
-    {"id": "S2", "title": "Tool Definitions", "passes": false},
-    {"id": "S3", "title": "API Client", "passes": false},
-    {"id": "S4", "title": "Property Lookup Tool", "passes": false},
-    {"id": "S5", "title": "Property Search Tool", "passes": false},
-    {"id": "S6", "title": "Get Comparables Tool", "passes": false},
-    {"id": "S7", "title": "Get Market Trends Tool", "passes": false},
-    {"id": "S8", "title": "Check Zoning Tool", "passes": false},
-    {"id": "S9", "title": "Get Permits Tool", "passes": false},
-    {"id": "S10", "title": "Remaining Tools (Owner Portfolio, Estimate Value, Development Feasibility)", "passes": false}
+    {"id": "S1", "title": "MCP Server Entry Point", "passes": true},
+    {"id": "S2", "title": "Tool Definitions", "passes": true},
+    {"id": "S3", "title": "API Client", "passes": true},
+    {"id": "S4", "title": "Property Lookup Tool", "passes": true},
+    {"id": "S5", "title": "Property Search Tool", "passes": true},
+    {"id": "S6", "title": "Get Comparables Tool", "passes": true},
+    {"id": "S7", "title": "Get Market Trends Tool", "passes": true},
+    {"id": "S8", "title": "Check Zoning Tool", "passes": true},
+    {"id": "S9", "title": "Get Permits Tool", "passes": true},
+    {"id": "S10", "title": "Remaining Tools (Owner Portfolio, Estimate Value, Development Feasibility)", "passes": true}
   ]
 }

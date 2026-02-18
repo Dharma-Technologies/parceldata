@@ -26,6 +26,10 @@
 - When using Redis `hset` with strict mypy, annotate mapping as `dict[str | bytes, bytes | float | int | str]`
 - Public endpoints (signup, webhooks) must be added to `PUBLIC_PATHS` or `PUBLIC_PREFIXES` in auth middleware
 - PLC0415: ruff requires all imports at module top level — don't use local imports inside methods
+- MCP server: `npm install --include=dev` needed for devDependencies (@types/node, vitest, etc.)
+- MCP SDK v1.26.0: `types: ["node"]` in tsconfig.json for Node.js globals (process, console, fetch)
+- MCP tool handlers accept `Record<string, unknown> | undefined` — cast to typed interface with all-optional fields
+- MCP server quality checks from mcp/ dir: `npx tsc --noEmit`, `npx eslint src/`, `npx vitest run`
 
 ---
 
@@ -228,4 +232,38 @@
   - `jellyfish` library for Jaro-Winkler similarity — needs mypy override
   - Data quality scoring: empty data gets ~0.62 score (accuracy=0.8 default, consistency=0.85 default)
   - Float arithmetic: 0.2+0.3+0.2+0.2+0.1 != 1.0 exactly — use `pytest.approx()`
+---
+
+## 2026-02-18 - S1-S10 (P10-06 MCP Server)
+- Implemented all 10 stories for P10-06 MCP Server
+- Files created:
+  - mcp/src/index.ts (S1: Server entry point with stdio transport, tool routing via handler map)
+  - mcp/src/tools/definitions.ts (S2: All 9 tool schemas with JSON Schema inputSchema)
+  - mcp/src/client/api.ts (S3: API client with GET/POST, query params, auth headers, error handling)
+  - mcp/src/tools/property-lookup.ts (S4: Lookup by address, parcel_id, or lat/lng)
+  - mcp/src/tools/property-search.ts (S5: POST search with filters)
+  - mcp/src/tools/get-comparables.ts (S6: Comparable sales with address-to-ID lookup)
+  - mcp/src/tools/get-market-trends.ts (S7: Area market statistics)
+  - mcp/src/tools/check-zoning.ts (S8: Permitted/conditional/prohibited use check)
+  - mcp/src/tools/get-permits.ts (S9: Permit history with status/type/date filters)
+  - mcp/src/tools/get-owner-portfolio.ts (S10: Owner portfolio lookup)
+  - mcp/src/tools/estimate-value.ts (S10: Automated valuation with adjustments)
+  - mcp/src/tools/check-development-feasibility.ts (S10: Max buildable area from zoning)
+  - mcp/test/index.test.ts (4 tests)
+  - mcp/test/definitions.test.ts (15 tests)
+  - mcp/test/api-client.test.ts (8 tests)
+  - mcp/test/tools.test.ts (25 tests)
+  - mcp/.eslintrc.json, .prettierrc.json, vitest.config.ts (tooling config)
+- Files modified:
+  - mcp/tsconfig.json (added `types: ["node"]` for Node.js globals)
+  - prd.json (updated for P10-06)
+- 52 tests passing (TypeScript strict, ESLint clean)
+- **Learnings for future iterations:**
+  - MCP SDK v1.26.0 uses Zod schemas for request validation (ListToolsRequestSchema, CallToolRequestSchema)
+  - `lib: ["ES2022"]` alone doesn't provide `process`, `console`, `fetch` — add `types: ["node"]` to tsconfig
+  - MCP tool handlers receive `Record<string, unknown> | undefined` from the SDK — use interface with all-optional fields to avoid TS cast errors
+  - `npm install` without `--include=dev` skips devDependencies — need `--include=dev` for @types/node, vitest, etc.
+  - Use `type: "text" as const` for MCP content blocks to satisfy TypeScript literal types
+  - createServer() factory function is testable without stdio transport
+  - Tool handler map (`Record<string, ToolHandler>`) is cleaner than switch/case for routing
 ---
