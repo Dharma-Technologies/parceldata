@@ -192,7 +192,8 @@ def _score_timeliness(
     if not source_timestamp:
         return 0.7, 0
 
-    age = datetime.utcnow() - source_timestamp
+    ts = source_timestamp.replace(tzinfo=None) if source_timestamp.tzinfo else source_timestamp
+    age = datetime.utcnow() - ts
     freshness_hours = int(age.total_seconds() / 3600)
 
     if freshness_hours < 24:

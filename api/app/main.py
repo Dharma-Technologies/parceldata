@@ -23,6 +23,7 @@ from app.routes.agent_readable import router as agent_readable_router
 from app.routes.analytics import router as analytics_router
 from app.routes.auth import router as auth_router
 from app.routes.health import router as health_router
+from app.routes.ingest import router as ingest_router
 from app.routes.properties import router as properties_router
 from app.routes.webhooks import router as webhooks_router
 
@@ -112,6 +113,7 @@ app.add_middleware(
 
 # --- Routers ---
 app.include_router(health_router)
+app.include_router(ingest_router)
 app.include_router(properties_router)
 app.include_router(analytics_router)
 app.include_router(auth_router)

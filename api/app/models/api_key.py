@@ -48,7 +48,12 @@ class Account(Base, TimestampMixin):
         String(50), index=True, nullable=True
     )
     tier: Mapped[TierEnum] = mapped_column(
-        Enum(TierEnum, schema="parcel"), default=TierEnum.FREE
+        Enum(
+            TierEnum,
+            schema="parcel",
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=TierEnum.FREE,
     )
 
     # Status
@@ -81,7 +86,13 @@ class APIKey(Base, TimestampMixin):
     # Key metadata
     name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     tier: Mapped[TierEnum] = mapped_column(
-        Enum(TierEnum, schema="parcel", create_type=False), default=TierEnum.FREE
+        Enum(
+            TierEnum,
+            schema="parcel",
+            create_type=False,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        default=TierEnum.FREE,
     )
     scopes: Mapped[list[object]] = mapped_column(JSONB, default=["read"])
 
